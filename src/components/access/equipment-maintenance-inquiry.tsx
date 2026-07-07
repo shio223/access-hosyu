@@ -1,16 +1,9 @@
 /**
  * 設備別保守実績照会画面
  *
- * 元のAccessフォーム「設備別保守実績照会」を印刷用の作業確認用紙として
- * 使用するため、画像とほぼ同一のレイアウト・配色・データで再現する。
- *
- * 構成:
- * 1. タイトルバー（前/現在/次ボタン付き）
- * 2. 設備・得意先の詳細情報（左=緑ラベル / 中央・右=黄ラベル の3ブロック）
- * 3. 備考（複数行テキスト）
- * 4. 保守履歴テーブル（作業日・作業コード・作業内容・稼働時間・客先担当・担当者・入力者）
- * 5. 操作ボタン（印刷・画面表示・実績修正・設備修正・終了）
- * 6. レコードナビゲーションバー
+ * 印刷用の作業確認用紙として使用するため、画面サイズが変わっても
+ * レイアウトが崩れない固定幅（980px）で表示する。
+ * ウィンドウが狭い場合は横スクロールで全体を表示する。
  */
 import { AccessRibbon } from "./access-form-window";
 import { routes } from "@/lib/routes";
@@ -18,78 +11,82 @@ import { AccessExitButton } from "./access-exit-button";
 import { equipmentDetail, maintenanceHistory } from "@/lib/dummy-data";
 import { cn } from "@/lib/utils";
 
-/** 項目ラベル（緑=左列 / 黄=中央・右列）。Accessのラベルコントロール再現 */
+const FORM_WIDTH = 980;
+
+/** 項目ラベル（緑=左列 / 黄=中央・右列） */
 function FieldLabel({
   children,
   variant = "yellow",
   className,
+  style,
 }: {
   children: React.ReactNode;
   variant?: "yellow" | "green";
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
       className={cn(
-        "text-[11px] leading-tight px-1 py-0.5 shrink-0 border border-[#808080] flex items-center",
+        "shrink-0 border border-[#808080] flex items-center px-1",
         variant === "yellow" ? "bg-[#FFFF66]" : "bg-[#99FF99]",
         className
       )}
+      style={{ fontSize: 11, lineHeight: "14px", height: 20, ...style }}
     >
       {children}
     </div>
   );
 }
 
-/** 白背景の値表示欄（沈み込みボーダー） */
+/** 白背景の値表示欄 */
 function FieldValue({
   children,
   className,
-  wide,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
-  wide?: boolean;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
       className={cn(
-        "bg-white border border-[#808080] px-1 py-0.5 text-[11px] leading-tight min-h-[20px] flex items-center overflow-hidden",
-        wide && "flex-1",
+        "bg-white border border-[#808080] px-1 flex items-center overflow-hidden shrink-0",
         className
       )}
+      style={{ fontSize: 11, lineHeight: "14px", height: 20, ...style }}
     >
       {children}
     </div>
   );
 }
 
-/**
- * コード＋名称の行（例: 得意先コード [4522] TOPPAN㈱）
- * 左列で使用。labelVariant で緑/黄を切替。
- */
+/** コード＋名称の行 */
 function CodeNameRow({
   label,
   code,
   name,
   labelVariant = "green",
-  labelWidth = "w-[88px]",
-  codeWidth = "w-[44px]",
+  labelWidth = 88,
+  codeWidth = 44,
 }: {
   label: string;
   code: string;
   name: string;
   labelVariant?: "yellow" | "green";
-  labelWidth?: string;
-  codeWidth?: string;
+  labelWidth?: number;
+  codeWidth?: number;
 }) {
   return (
-    <div className="flex items-stretch gap-0.5">
-      <FieldLabel variant={labelVariant} className={labelWidth}>
+    <div className="flex items-stretch" style={{ gap: 1, marginBottom: 1 }}>
+      <FieldLabel variant={labelVariant} style={{ width: labelWidth }}>
         {label}
       </FieldLabel>
-      <FieldValue className={cn(codeWidth, "justify-center")}>{code}</FieldValue>
-      <FieldValue className="flex-1 min-w-0">{name}</FieldValue>
+      <FieldValue style={{ width: codeWidth, justifyContent: "center" }}>{code}</FieldValue>
+      <FieldValue className="flex-1" style={{ width: "auto", flex: 1 }}>
+        {name}
+      </FieldValue>
     </div>
   );
 }
@@ -99,19 +96,21 @@ function SimpleRow({
   label,
   value,
   labelVariant = "yellow",
-  labelWidth = "w-[88px]",
+  labelWidth = 72,
 }: {
   label: string;
   value: string;
   labelVariant?: "yellow" | "green";
-  labelWidth?: string;
+  labelWidth?: number;
 }) {
   return (
-    <div className="flex items-stretch gap-0.5">
-      <FieldLabel variant={labelVariant} className={labelWidth}>
+    <div className="flex items-stretch" style={{ gap: 1, marginBottom: 1 }}>
+      <FieldLabel variant={labelVariant} style={{ width: labelWidth }}>
         {label}
       </FieldLabel>
-      <FieldValue wide>{value || "\u00A0"}</FieldValue>
+      <FieldValue className="flex-1" style={{ flex: 1 }}>
+        {value || "\u00A0"}
+      </FieldValue>
     </div>
   );
 }
@@ -121,34 +120,60 @@ export function EquipmentMaintenanceInquiry() {
   const d = equipmentDetail;
 
   return (
-    <div className="min-h-screen bg-[#C0C0C0] flex flex-col print:bg-white print:block">
+    <div className="min-h-screen bg-[#C0C0C0] print:bg-white">
       <div className="print:hidden">
         <AccessRibbon />
       </div>
-      <div className="flex-1 p-1 md:p-2 overflow-auto print:p-0 print:overflow-visible">
-        <div className="max-w-[1000px] mx-auto border-2 border-[#404040] bg-[#D4D0C8] shadow-lg print:border-0 print:shadow-none print:max-w-none">
+
+      {/* 横スクロール領域：画面が狭くてもレイアウトは980px固定 */}
+      <div className="overflow-x-auto print:overflow-visible">
+        <div
+          className="inquiry-form-fixed mx-auto border-2 border-[#404040] bg-[#D4D0C8] shadow-lg print:border-0 print:shadow-none"
+          style={{ width: FORM_WIDTH, minWidth: FORM_WIDTH, maxWidth: FORM_WIDTH }}
+        >
           {/* Window title bar */}
-          <div className="bg-[#D4D0C8] border-b border-[#808080] px-2 py-0.5 text-xs flex justify-between print:hidden">
+          <div
+            className="bg-[#D4D0C8] border-b border-[#808080] flex justify-between print:hidden"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+          >
             <span>F-設備照会</span>
-            <span className="flex gap-0.5">
-              <span className="w-4 h-3 border border-[#808080] bg-[#C0C0C0] text-[8px] flex items-center justify-center">_</span>
-              <span className="w-4 h-3 border border-[#808080] bg-[#C0C0C0] text-[8px] flex items-center justify-center">□</span>
-              <span className="w-4 h-3 border border-[#808080] bg-[#C0C0C0] text-[8px] flex items-center justify-center">×</span>
+            <span className="flex" style={{ gap: 2 }}>
+              {["_", "□", "×"].map((c) => (
+                <span
+                  key={c}
+                  className="border border-[#808080] bg-[#C0C0C0] flex items-center justify-center"
+                  style={{ width: 16, height: 12, fontSize: 8 }}
+                >
+                  {c}
+                </span>
+              ))}
             </span>
           </div>
 
-          {/* Blue title header with prev/current/next */}
-          <div className="bg-[#0000CC] text-white flex items-center px-2 py-1">
-            <div className="flex-1" />
-            <h1 className="text-base md:text-lg font-bold text-center shrink-0">
+          {/* Blue title header */}
+          <div
+            className="bg-[#0000CC] text-white flex items-center print:bg-[#0000CC]"
+            style={{ padding: "4px 8px", height: 28 }}
+          >
+            <div style={{ width: 120 }} />
+            <h1
+              className="font-bold text-center shrink-0"
+              style={{ fontSize: 14, flex: 1 }}
+            >
               設備別保守実績照会
             </h1>
-            <div className="flex-1 flex justify-end gap-1 print:invisible">
+            <div className="flex justify-end print:invisible" style={{ width: 120, gap: 4 }}>
               {["前", "現在", "次"].map((btn) => (
                 <button
                   key={btn}
                   type="button"
-                  className="bg-[#D4D0C8] text-black border border-[#808080] shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] px-2 py-0 text-xs rounded-none"
+                  className="bg-[#D4D0C8] text-black border border-[#808080] rounded-none"
+                  style={{
+                    fontSize: 11,
+                    padding: "0 6px",
+                    height: 20,
+                    boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+                  }}
                 >
                   {btn}
                 </button>
@@ -157,87 +182,109 @@ export function EquipmentMaintenanceInquiry() {
           </div>
 
           {/* Main info area */}
-          <div className="p-1 md:p-2 bg-[#D4D0C8] print:bg-white">
-            {/* 修正日 (top-right) */}
-            <div className="flex justify-end mb-1">
-              <div className="flex items-stretch gap-0.5">
-                <FieldLabel className="w-[56px] justify-center">修正日</FieldLabel>
-                <FieldValue className="w-[90px] justify-center">{d.revisionDate}</FieldValue>
+          <div className="bg-[#D4D0C8] print:bg-white" style={{ padding: 6 }}>
+            {/* 修正日 */}
+            <div className="flex justify-end" style={{ marginBottom: 4 }}>
+              <div className="flex" style={{ gap: 1 }}>
+                <FieldLabel variant="yellow" style={{ width: 52, justifyContent: "center" }}>
+                  修正日
+                </FieldLabel>
+                <FieldValue style={{ width: 88, justifyContent: "center" }}>
+                  {d.revisionDate}
+                </FieldValue>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1.25fr)] gap-x-3 gap-y-0.5">
-              {/* Left column: green labels */}
-              <div className="space-y-0.5">
-                <CodeNameRow label="得意先コード" code={d.customerCode} name={d.customerName} labelVariant="green" />
-                <CodeNameRow label="設備番号" code={d.equipmentNo} name={d.equipmentName} labelVariant="green" />
-                <CodeNameRow label="運転状況CD" code={d.statusCode} name={d.statusName} labelVariant="green" />
-                <CodeNameRow label="機種コード" code={d.modelCode} name={d.modelName} labelVariant="green" />
-                <CodeNameRow label="メーカーコード" code={d.makerCode} name={d.makerName} labelVariant="green" />
-                <SimpleRow label="型　　式" value={d.modelType} labelVariant="green" />
-                <SimpleRow label="管理番号" value={d.managementNo} labelVariant="green" />
+            {/* 3カラム固定レイアウト */}
+            <div className="flex" style={{ gap: 8 }}>
+              {/* 左列 */}
+              <div style={{ width: 360, flexShrink: 0 }}>
+                <CodeNameRow label="得意先コード" code={d.customerCode} name={d.customerName} />
+                <CodeNameRow label="設備番号" code={d.equipmentNo} name={d.equipmentName} />
+                <CodeNameRow label="運転状況CD" code={d.statusCode} name={d.statusName} />
+                <CodeNameRow label="機種コード" code={d.modelCode} name={d.modelName} />
+                <CodeNameRow label="メーカーコード" code={d.makerCode} name={d.makerName} />
+                <SimpleRow label="型　　式" value={d.modelType} labelVariant="green" labelWidth={88} />
+                <SimpleRow label="管理番号" value={d.managementNo} labelVariant="green" labelWidth={88} />
               </div>
 
-              {/* Middle column: yellow labels */}
-              <div className="space-y-0.5">
-                <SimpleRow label="郵便番号" value={d.postalCode} labelWidth="w-[72px]" />
-                <SimpleRow label="電話番号" value={d.phone} labelWidth="w-[72px]" />
-                <SimpleRow label="納 入 日" value={d.deliveryDate} labelWidth="w-[72px]" />
-                <SimpleRow label="点検周期" value={d.inspectionCycle} labelWidth="w-[72px]" />
-                <SimpleRow label="次回点検日" value={d.nextInspectionDate} labelWidth="w-[72px]" />
-                <SimpleRow label="点検案内" value={d.inspectionNotice} labelWidth="w-[72px]" />
+              {/* 中央列 */}
+              <div style={{ width: 200, flexShrink: 0 }}>
+                <SimpleRow label="郵便番号" value={d.postalCode} />
+                <SimpleRow label="電話番号" value={d.phone} />
+                <SimpleRow label="納 入 日" value={d.deliveryDate} />
+                <SimpleRow label="点検周期" value={d.inspectionCycle} />
+                <SimpleRow label="次回点検日" value={d.nextInspectionDate} />
+                <SimpleRow label="点検案内" value={d.inspectionNotice} />
               </div>
 
-              {/* Right column: yellow labels */}
-              <div className="space-y-0.5">
-                <SimpleRow label="住 所 1" value={d.address1} labelWidth="w-[72px]" />
-                <SimpleRow label="住 所 2" value={d.address2} labelWidth="w-[72px]" />
-                <SimpleRow label="1次販売店" value={d.dealer1} labelWidth="w-[72px]" />
-                <SimpleRow label="2次販売店" value={d.dealer2} labelWidth="w-[72px]" />
-                <SimpleRow label="3次販売店" value={d.dealer3} labelWidth="w-[72px]" />
-                <SimpleRow label="使用オイル" value={d.oilUsed} labelWidth="w-[72px]" />
+              {/* 右列 */}
+              <div style={{ width: 392, flexShrink: 0 }}>
+                <SimpleRow label="住 所 1" value={d.address1} labelWidth={72} />
+                <SimpleRow label="住 所 2" value={d.address2} labelWidth={72} />
+                <SimpleRow label="1次販売店" value={d.dealer1} labelWidth={72} />
+                <SimpleRow label="2次販売店" value={d.dealer2} labelWidth={72} />
+                <SimpleRow label="3次販売店" value={d.dealer3} labelWidth={72} />
+                <SimpleRow label="使用オイル" value={d.oilUsed} labelWidth={72} />
               </div>
             </div>
 
-            {/* Remarks */}
-            <div className="flex items-stretch gap-0.5 mt-1">
-              <FieldLabel variant="green" className="w-[88px] self-stretch">備　　考</FieldLabel>
-              <div className="flex-1 bg-white border border-[#808080] px-1 py-0.5 text-[11px] leading-snug min-h-[48px] whitespace-pre-line">
+            {/* 備考 */}
+            <div className="flex items-stretch" style={{ gap: 1, marginTop: 4 }}>
+              <FieldLabel variant="green" style={{ width: 88, alignSelf: "stretch", height: "auto", minHeight: 52 }}>
+                備　　考
+              </FieldLabel>
+              <div
+                className="flex-1 bg-white border border-[#808080] whitespace-pre-line"
+                style={{ fontSize: 11, lineHeight: "14px", padding: "2px 4px", minHeight: 52 }}
+              >
                 {d.remarks}
               </div>
             </div>
 
-            {/* History table */}
-            <div className="mt-1.5 overflow-x-auto print:overflow-visible border border-[#808080]">
-              <table className="w-full border-collapse text-[11px] min-w-[720px] print:min-w-0">
+            {/* 履歴テーブル（列幅固定） */}
+            <div className="border border-[#808080]" style={{ marginTop: 6 }}>
+              <table
+                className="border-collapse w-full"
+                style={{ fontSize: 11, tableLayout: "fixed" }}
+              >
+                <colgroup>
+                  <col style={{ width: 76 }} />
+                  <col style={{ width: 52 }} />
+                  <col style={{ width: 380 }} />
+                  <col style={{ width: 60 }} />
+                  <col style={{ width: 52 }} />
+                  <col style={{ width: 88 }} />
+                  <col style={{ width: 76 }} />
+                </colgroup>
                 <thead>
                   <tr className="bg-[#008000] text-white">
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center whitespace-nowrap w-[78px]">作業日</th>
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center whitespace-nowrap w-[54px]">作業コード</th>
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center">作業内容</th>
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center whitespace-nowrap w-[62px]">稼働時間</th>
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center whitespace-nowrap w-[54px]">客先担当</th>
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center whitespace-nowrap w-[92px]">担当者コード</th>
-                    <th className="border border-[#004000] px-1 py-0.5 font-bold text-center whitespace-nowrap w-[80px]">入力者コード</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>作業日</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>作業コード</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>作業内容</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>稼働時間</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>客先担当</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>担当者コード</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>入力者コード</th>
                   </tr>
                 </thead>
                 <tbody>
                   {maintenanceHistory.map((row, i) => (
                     <tr key={i} className="bg-white">
-                      <td className="border border-[#808080] px-1 py-0.5 whitespace-nowrap">{row.workDate}</td>
-                      <td className="border border-[#808080] px-1 py-0.5 text-center">{row.workCode}</td>
-                      <td className="border border-[#808080] px-1 py-0.5">
-                        <span className="inline-block w-[60px] align-top">{row.workType}</span>
+                      <td className="border border-[#808080]" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>{row.workDate}</td>
+                      <td className="border border-[#808080] text-center" style={{ padding: "2px 4px" }}>{row.workCode}</td>
+                      <td className="border border-[#808080]" style={{ padding: "2px 4px" }}>
+                        <span style={{ display: "inline-block", width: 60, verticalAlign: "top" }}>{row.workType}</span>
                         <span>{row.workContent}</span>
                       </td>
-                      <td className="border border-[#808080] px-1 py-0.5 text-right whitespace-nowrap">{row.operatingHours}</td>
-                      <td className="border border-[#808080] px-1 py-0.5 text-center">{row.customerContact}</td>
-                      <td className="border border-[#808080] px-1 py-0.5 whitespace-nowrap">
-                        <span className="inline-block w-6">{row.staffCode}</span>
+                      <td className="border border-[#808080] text-right" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>{row.operatingHours}</td>
+                      <td className="border border-[#808080] text-center" style={{ padding: "2px 4px" }}>{row.customerContact}</td>
+                      <td className="border border-[#808080]" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>
+                        <span style={{ display: "inline-block", width: 20 }}>{row.staffCode}</span>
                         {row.staffName}
                       </td>
-                      <td className="border border-[#808080] px-1 py-0.5 whitespace-nowrap">
-                        <span className="inline-block w-6">{row.inputterCode}</span>
+                      <td className="border border-[#808080]" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>
+                        <span style={{ display: "inline-block", width: 20 }}>{row.inputterCode}</span>
                         {row.inputterName}
                       </td>
                     </tr>
@@ -247,14 +294,23 @@ export function EquipmentMaintenanceInquiry() {
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex flex-wrap items-center gap-3 bg-[#D4D0C8] px-3 py-2 border-t border-[#808080] print:hidden">
-            <div className="flex-1 flex flex-wrap justify-center gap-4">
+          {/* 操作ボタン */}
+          <div
+            className="flex items-center bg-[#D4D0C8] border-t border-[#808080] print:hidden"
+            style={{ padding: "8px 12px", height: 44 }}
+          >
+            <div className="flex-1 flex justify-center" style={{ gap: 16 }}>
               {["印　刷", "画面表示", "実績修正", "設備修正"].map((label) => (
                 <button
                   key={label}
                   type="button"
-                  className="bg-[#D4D0C8] border border-[#808080] shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] px-4 py-1 text-sm rounded-none min-h-[28px]"
+                  className="bg-[#D4D0C8] border border-[#808080] rounded-none shrink-0"
+                  style={{
+                    fontSize: 13,
+                    padding: "2px 16px",
+                    height: 28,
+                    boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+                  }}
                 >
                   {label}
                 </button>
@@ -263,21 +319,35 @@ export function EquipmentMaintenanceInquiry() {
             <AccessExitButton href={routes.menuReference} />
           </div>
 
-          {/* Record navigation bar */}
-          <div className="flex items-center gap-2 px-2 py-1 bg-[#D4D0C8] border-t border-[#808080] text-xs print:hidden">
+          {/* レコードナビゲーション */}
+          <div
+            className="flex items-center bg-[#D4D0C8] border-t border-[#808080] print:hidden"
+            style={{ padding: "4px 8px", fontSize: 11, gap: 8, height: 28 }}
+          >
             <span>レコード:</span>
-            <div className="flex items-center gap-0.5">
+            <div className="flex" style={{ gap: 2 }}>
               {["|◀", "◀", "▶", "▶|"].map((arrow) => (
                 <button
                   key={arrow}
                   type="button"
-                  className="w-6 h-5 bg-[#C0C0C0] border border-[#808080] shadow-[inset_1px_1px_0_#fff,inset_-1px_-1px_0_#808080] text-[10px] rounded-none"
+                  className="bg-[#C0C0C0] border border-[#808080] rounded-none"
+                  style={{
+                    width: 22,
+                    height: 18,
+                    fontSize: 9,
+                    boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+                  }}
                 >
                   {arrow}
                 </button>
               ))}
             </div>
-            <span className="bg-white border border-[#808080] px-2 py-0 min-w-[24px] text-center">1</span>
+            <span
+              className="bg-white border border-[#808080] text-center"
+              style={{ padding: "0 6px", minWidth: 20 }}
+            >
+              1
+            </span>
             <span>/ 6</span>
           </div>
         </div>

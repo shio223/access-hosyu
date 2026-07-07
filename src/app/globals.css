@@ -140,8 +140,6 @@ select {
 /*
  * 印刷用スタイル
  * 設備別保守実績照会を作業確認用紙として印刷する際の設定。
- * - 背景色（緑/黄ラベル・テーブルヘッダー）を印刷時も保持
- * - 横向き・余白を最小化して1枚に収める
  */
 @media print {
   * {
@@ -156,5 +154,12 @@ select {
   @page {
     size: landscape;
     margin: 8mm;
+  }
+
+  /* 印刷時も980px固定レイアウトを維持 */
+  .inquiry-form-fixed {
+    width: 980px !important;
+    min-width: 980px !important;
+    max-width: 980px !important;
   }
 }
