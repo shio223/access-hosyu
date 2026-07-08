@@ -11,6 +11,10 @@ export const routes = {
   menuUpdate: "/update",
   /** 設備別保守実績照会 */
   equipmentInquiry: "/equipment/maintenance-inquiry",
+  /** 保守実績データ入力・修正 */
+  maintenanceEntry: "/maintenance/entry",
+  /** 設備マスタ修正 */
+  equipmentEdit: "/equipment/edit",
   /** 保守実績データ検索 */
   maintenanceSearch: "/maintenance/search",
   /** 設備マスタ検索 */
@@ -28,6 +32,8 @@ export const screenList = [
   { path: routes.menuReference, name: "メインメニュー（参照処理）" },
   { path: routes.menuUpdate, name: "メインメニュー（更新処理）" },
   { path: routes.equipmentInquiry, name: "設備別保守実績照会" },
+  { path: routes.maintenanceEntry, name: "保守実績データ入力・修正" },
+  { path: routes.equipmentEdit, name: "設備マスタ修正" },
   { path: routes.maintenanceSearch, name: "保守実績データ検索" },
   { path: routes.equipmentSearch, name: "設備マスタ検索" },
   { path: routes.customerSearch, name: "得意先マスタ検索" },

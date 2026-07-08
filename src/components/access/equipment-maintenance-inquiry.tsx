@@ -8,6 +8,8 @@
  * ウィンドウが狭い場合は横スクロールで全体を表示する。
  * 「印刷」ボタンでブラウザの印刷ダイアログを開く。
  */
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AccessRibbon } from "./access-form-window";
 import { routes } from "@/lib/routes";
 import { AccessExitButton } from "./access-exit-button";
@@ -121,12 +123,33 @@ function SimpleRow({
 /** 設備別保守実績照会画面のメインコンポーネント */
 export function EquipmentMaintenanceInquiry() {
   const d = equipmentDetail;
+  const router = useRouter();
+  const [displayMode, setDisplayMode] = useState(false);
+
+  const handleButtonClick = (label: string) => {
+    switch (label) {
+      case "印　刷":
+        window.print();
+        break;
+      case "画面表示":
+        setDisplayMode(true);
+        break;
+      case "実績修正":
+        router.push(routes.maintenanceEntry);
+        break;
+      case "設備修正":
+        router.push(routes.equipmentEdit);
+        break;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#C0C0C0] print:bg-white">
-      <div className="print:hidden">
-        <AccessRibbon />
-      </div>
+    <div className={`min-h-screen print:bg-white ${displayMode ? "bg-white" : "bg-[#C0C0C0]"}`}>
+      {!displayMode && (
+        <div className="print:hidden">
+          <AccessRibbon />
+        </div>
+      )}
 
       {/* 横スクロール領域：画面が狭くてもレイアウトは980px固定 */}
       <div className="overflow-x-auto print:overflow-visible">
@@ -135,6 +158,7 @@ export function EquipmentMaintenanceInquiry() {
           style={{ width: FORM_WIDTH, minWidth: FORM_WIDTH, maxWidth: FORM_WIDTH }}
         >
           {/* Window title bar */}
+          {!displayMode && (
           <div
             className="bg-[#D4D0C8] border-b border-[#808080] flex justify-between print:hidden"
             style={{ padding: "2px 8px", fontSize: 11 }}
@@ -152,6 +176,7 @@ export function EquipmentMaintenanceInquiry() {
               ))}
             </span>
           </div>
+          )}
 
           {/* Blue title header */}
           <div
@@ -166,21 +191,22 @@ export function EquipmentMaintenanceInquiry() {
               設備別保守実績照会
             </h1>
             <div className="flex justify-end print:invisible" style={{ width: 120, gap: 4 }}>
-              {["前", "現在", "次"].map((btn) => (
-                <button
-                  key={btn}
-                  type="button"
-                  className="bg-[#D4D0C8] text-black border border-[#808080] rounded-none"
-                  style={{
-                    fontSize: 11,
-                    padding: "0 6px",
-                    height: 20,
-                    boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
-                  }}
-                >
-                  {btn}
-                </button>
-              ))}
+              {!displayMode &&
+                ["前", "現在", "次"].map((btn) => (
+                  <button
+                    key={btn}
+                    type="button"
+                    className="bg-[#D4D0C8] text-black border border-[#808080] rounded-none"
+                    style={{
+                      fontSize: 11,
+                      padding: "0 6px",
+                      height: 20,
+                      boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+                    }}
+                  >
+                    {btn}
+                  </button>
+                ))}
             </div>
           </div>
 
@@ -298,6 +324,7 @@ export function EquipmentMaintenanceInquiry() {
           </div>
 
           {/* 操作ボタン */}
+          {!displayMode && (
           <div
             className="flex items-center bg-[#D4D0C8] border-t border-[#808080] print:hidden"
             style={{ padding: "8px 12px", height: 44 }}
@@ -307,7 +334,7 @@ export function EquipmentMaintenanceInquiry() {
                 <button
                   key={label}
                   type="button"
-                  onClick={label === "印　刷" ? () => window.print() : undefined}
+                  onClick={() => handleButtonClick(label)}
                   className="bg-[#D4D0C8] border border-[#808080] rounded-none shrink-0"
                   style={{
                     fontSize: 13,
@@ -322,8 +349,29 @@ export function EquipmentMaintenanceInquiry() {
             </div>
             <AccessExitButton href={routes.menuReference} />
           </div>
+          )}
+
+          {/* 画面表示モード：閉じるボタン */}
+          {displayMode && (
+            <div className="flex justify-end border-t border-[#808080] bg-[#D4D0C8]" style={{ padding: "8px 12px" }}>
+              <button
+                type="button"
+                onClick={() => setDisplayMode(false)}
+                className="bg-[#D4D0C8] border border-[#808080] rounded-none"
+                style={{
+                  fontSize: 13,
+                  padding: "2px 16px",
+                  height: 28,
+                  boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+                }}
+              >
+                閉じる
+              </button>
+            </div>
+          )}
 
           {/* レコードナビゲーション */}
+          {!displayMode && (
           <div
             className="flex items-center bg-[#D4D0C8] border-t border-[#808080] print:hidden"
             style={{ padding: "4px 8px", fontSize: 11, gap: 8, height: 28 }}
@@ -354,6 +402,7 @@ export function EquipmentMaintenanceInquiry() {
             </span>
             <span>/ 6</span>
           </div>
+          )}
         </div>
       </div>
     </div>
