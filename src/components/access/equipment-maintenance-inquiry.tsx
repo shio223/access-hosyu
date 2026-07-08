@@ -1,9 +1,12 @@
+"use client";
+
 /**
  * 設備別保守実績照会画面
  *
  * 印刷用の作業確認用紙として使用するため、画面サイズが変わっても
  * レイアウトが崩れない固定幅（980px）で表示する。
  * ウィンドウが狭い場合は横スクロールで全体を表示する。
+ * 「印刷」ボタンでブラウザの印刷ダイアログを開く。
  */
 import { AccessRibbon } from "./access-form-window";
 import { routes } from "@/lib/routes";
@@ -304,6 +307,7 @@ export function EquipmentMaintenanceInquiry() {
                 <button
                   key={label}
                   type="button"
+                  onClick={label === "印　刷" ? () => window.print() : undefined}
                   className="bg-[#D4D0C8] border border-[#808080] rounded-none shrink-0"
                   style={{
                     fontSize: 13,
