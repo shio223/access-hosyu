@@ -20,9 +20,14 @@
  * - src/lib/access-colors.ts … 配色定数
  *
  * ## 今後の実装予定
- * - Supabase接続によるデータ取得・保存
+ * - Supabase接続によるデータ取得・保存（現在はSQLite + CSV取込）
  * - 検索フォームの入力・検索ロジック
  * - 更新処理メニュー各画面の追加
+ *
+ * ## データ取り込み
+ * - CSVインポート: npm run import:csv -- data/import/ファイル名.csv
+ * - 画面からのアップロード: /maintenance/upload
+ * - 手順: data/import/README.md
  */
 
 export {};

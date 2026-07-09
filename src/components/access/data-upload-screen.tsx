@@ -1,17 +1,13 @@
 "use client";
 
 /**
- * 保守実績データ アップロード画面（UIのみ）
+ * 保守実績データ アップロード画面
  *
- * 元のAccessフォーム「保守実績データ アップロード - 三光ERPAzure」を再現。
- * データの読み書き・転送は行わない。Supabase接続後に upload-service を実装する。
+ * CSVファイルをローカルSQLite DBへ取り込む。
+ * 将来Supabase移行時は upload-service を差し替える。
  */
-import { useState } from "react";
-import {
-  uploadDashboardDummy,
-  uploadDocLinks,
-  uploadTechnicalInfo,
-} from "@/lib/upload-dummy-data";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { uploadDashboardDummy, uploadDocLinks, uploadTechnicalInfo } from "@/lib/upload-dummy-data";
 import { routes } from "@/lib/routes";
 import { AccessExitButton } from "./access-exit-button";
 
@@ -100,43 +96,125 @@ function DisplayField({ value, width }: { value: string; width?: number | string
 }
 
 export function DataUploadScreen() {
-  const [localPath, setLocalPath] = useState(uploadDashboardDummy.localDataPath);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [localPath, setLocalPath] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [localCount, setLocalCount] = useState<string>("- 件");
+  const [cloudLastUploadAt, setCloudLastUploadAt] = useState(
+    uploadDashboardDummy.cloudLastUploadAt
+  );
+  const [cloudRecordCount, setCloudRecordCount] = useState(
+    uploadDashboardDummy.cloudRecordCount
+  );
   const [commandLog, setCommandLog] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
-  const appendLog = (message: string) => {
+  const appendLog = useCallback((message: string) => {
     const line = `[${new Date().toLocaleString("ja-JP")}] ${message}`;
     setCommandLog((prev) => (prev ? `${prev}\n${line}` : line));
-  };
+  }, []);
+
+  const refreshStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/stats");
+      if (!res.ok) return;
+      const data = await res.json();
+      setCloudRecordCount(data.cloudRecordCount ?? 0);
+      if (data.cloudLastUploadAt) {
+        setCloudLastUploadAt(data.cloudLastUploadAt);
+      }
+    } catch {
+      // 初回起動時などDB未作成の場合は無視
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats]);
 
   const handleBrowse = () => {
-    appendLog("（デモ）参照ボタンが押されました。ファイル選択は未実装です。");
+    fileInputRef.current?.click();
   };
 
-  const handleUpload = () => {
-    setLocalCount("（未取得） 件");
-    appendLog("（デモ）アップロード実行ボタンが押されました。");
-    appendLog("実際のデータ転送は行いません。Supabase接続後に実装予定です。");
-    appendLog(`指定パス: ${localPath}`);
-    appendLog("---");
-    appendLog("【将来実装予定】");
-    appendLog("・ローカルデータ件数の取得");
-    appendLog("・クラウドへの一括取込");
-    appendLog("・進捗表示（処理件数 / 全件数）");
-    appendLog("・成功件数・失敗件数の表示");
-    appendLog("・エラーログの出力");
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setLocalPath(file.name);
+    setLocalCount("- 件");
+    appendLog(`CSVファイルを選択: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+    e.target.value = "";
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      appendLog("CSVファイルを「参照」ボタンで選択してください。");
+      return;
+    }
+
+    setIsUploading(true);
+    appendLog("アップロード実行を開始します...");
+    appendLog(`ファイル: ${selectedFile.name}`);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const res = await fetch("/api/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        appendLog(`エラー: ${data.error ?? "インポートに失敗しました"}`);
+        return;
+      }
+
+      const { result, stats } = data;
+      setLocalCount(`${result.inserted.toLocaleString()} 件`);
+      setCloudRecordCount(stats.maintenanceRecordCount);
+      if (stats.lastImportAt) {
+        setCloudLastUploadAt(new Date(stats.lastImportAt).toLocaleString("ja-JP"));
+      }
+
+      appendLog(`取込完了: ${result.table}`);
+      appendLog(`  成功: ${result.inserted.toLocaleString()} 件`);
+      if (result.skipped > 0) {
+        appendLog(`  スキップ: ${result.skipped.toLocaleString()} 件`);
+      }
+      appendLog(`DB合計（保守実績）: ${stats.maintenanceRecordCount.toLocaleString()} 件`);
+      appendLog(`DB合計（設備）: ${stats.equipmentCount.toLocaleString()} 件`);
+
+      if (result.errors?.length > 0) {
+        appendLog("--- エラー（先頭） ---");
+        result.errors.slice(0, 10).forEach((err: string) => appendLog(`  ${err}`));
+      }
+    } catch (error) {
+      appendLog(`エラー: ${error instanceof Error ? error.message : "通信に失敗しました"}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handlePrint = () => window.print();
 
   return (
     <div className="min-h-screen bg-[#C0C0C0] print:bg-white">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       <div className="overflow-x-auto p-2 print:p-0">
         <div
           className="mx-auto border-2 border-[#404040] bg-[#D4D0C8] shadow-lg print:border-0 print:shadow-none"
           style={{ width: FORM_WIDTH, minWidth: FORM_WIDTH, maxWidth: FORM_WIDTH }}
         >
-          {/* ウィンドウタイトル */}
           <div
             className="bg-[#D4D0C8] border-b border-[#808080] flex justify-between print:hidden"
             style={{ padding: "2px 8px", fontSize: 11 }}
@@ -144,7 +222,6 @@ export function DataUploadScreen() {
             <span>保守実績データ アップロード - 三光ERPAzure</span>
           </div>
 
-          {/* ヘッダー帯 */}
           <div
             className="text-white flex items-center justify-between"
             style={{ background: "#006666", padding: "6px 8px" }}
@@ -163,7 +240,6 @@ export function DataUploadScreen() {
             </div>
           </div>
 
-          {/* MODE・接続先 */}
           <div
             className="flex items-center border-b border-[#808080]"
             style={{ padding: "6px 8px", gap: 12, fontSize: 11 }}
@@ -181,23 +257,21 @@ export function DataUploadScreen() {
                 転送
               </span>
             </div>
-            <span>
-              接続先: {uploadDashboardDummy.connectionTarget}
-            </span>
+            <span>接続先: ローカルDB（data/hosyu.db）</span>
           </div>
 
-          {/* メイン入力エリア */}
           <div style={{ padding: "12px 8px" }}>
             <InfoRow
               label="ローカルデータの場所"
-              note="保守管理データのフルパスです。サーバーの更新などで変更があった時は「参照」ボタンを押して変更ください。"
+              note="AccessからエクスポートしたCSVファイルを「参照」で選択してください。"
             >
               <div className="flex" style={{ gap: 4 }}>
                 <ToolbarButton onClick={handleBrowse}>参照</ToolbarButton>
                 <input
                   type="text"
                   value={localPath}
-                  onChange={(e) => setLocalPath(e.target.value)}
+                  readOnly
+                  placeholder="CSVファイルを選択..."
                   className="flex-1 bg-white border border-[#808080] rounded-none outline-none"
                   style={{
                     fontSize: 12,
@@ -211,29 +285,25 @@ export function DataUploadScreen() {
 
             <InfoRow
               label="ローカル　データ件数"
-              note="保守管理システムのデータの件数です。「アップロード実行」ボタンを押したタイミングで表示します。"
+              note="選択したCSVの取込件数です。「アップロード実行」後に表示します。"
             >
               <DisplayField value={localCount} width={120} />
             </InfoRow>
 
             <InfoRow label="クラウド　最終アップロード日時">
-              <DisplayField
-                value={uploadDashboardDummy.cloudLastUploadAt}
-                width={200}
-              />
+              <DisplayField value={cloudLastUploadAt} width={200} />
             </InfoRow>
 
             <InfoRow
               label="クラウド　データ件数"
-              note="クラウドにアップロード済みの保守管理データの件数です。"
+              note="WebアプリDBに取り込み済みの保守実績件数です。"
             >
               <DisplayField
-                value={`${uploadDashboardDummy.cloudRecordCount.toLocaleString()} 件`}
+                value={`${cloudRecordCount.toLocaleString()} 件`}
                 width={120}
               />
             </InfoRow>
 
-            {/* コマンドログ */}
             <div style={{ marginTop: 12 }}>
               <div className="font-bold" style={{ fontSize: 12, marginBottom: 4 }}>
                 コマンド
@@ -252,15 +322,15 @@ export function DataUploadScreen() {
               />
             </div>
 
-            {/* アップロード実行 */}
             <div style={{ marginTop: 16 }}>
               <div className="text-[#CC0000] font-bold" style={{ fontSize: 12, marginBottom: 6 }}>
-                2～3分かかります。
+                大量データの場合は2～3分かかることがあります。
               </div>
               <button
                 type="button"
                 onClick={handleUpload}
-                className="bg-[#C0C0C0] border-2 border-[#808080] rounded-none font-bold text-[#0000CC] print:hidden"
+                disabled={isUploading}
+                className="bg-[#C0C0C0] border-2 border-[#808080] rounded-none font-bold text-[#0000CC] print:hidden disabled:text-[#808080]"
                 style={{
                   fontSize: 18,
                   padding: "8px 24px",
@@ -268,15 +338,14 @@ export function DataUploadScreen() {
                   boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
                 }}
               >
-                アップロード　実行
+                {isUploading ? "取込中..." : "アップロード　実行"}
               </button>
               <div className="text-[#CC0000] font-bold" style={{ fontSize: 11, marginTop: 8 }}>
-                保守管理システム上の入力、更新、集計、検索等の作業を止めてから実行してください。（データ破損の恐れ）
+                元のAccessデータは変更されません。CSVのコピーを取り込むだけです。
               </div>
             </div>
           </div>
 
-          {/* 技術情報・資料リンク */}
           <div
             className="flex border-t border-[#808080] print:hidden"
             style={{ padding: "8px", gap: 16, fontSize: 10 }}
@@ -304,16 +373,14 @@ export function DataUploadScreen() {
             </div>
           </div>
 
-          {/* フッター */}
           <div
             className="flex items-center justify-between text-white print:hidden"
             style={{ background: "#800000", padding: "2px 8px", fontSize: 10 }}
           >
             <span>フォーム ビュー</span>
-            <span>MICROSOFT ACCESS の機能を利用しています</span>
+            <span>CSV → SQLite 取込モード</span>
           </div>
 
-          {/* 終了ボタン */}
           <div
             className="flex justify-end border-t border-[#808080] print:hidden"
             style={{ padding: "8px 12px" }}

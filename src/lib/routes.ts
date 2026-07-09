@@ -1,35 +1,34 @@
 /**
  * 画面URL定義
- *
- * 各画面のパスをここで一元管理する。
- * メニューボタン・終了ボタン・画面一覧ページから参照する。
  */
 export const routes = {
-  /** メインメニュー（参照処理） */
   menuReference: "/",
-  /** メインメニュー（更新処理） */
   menuUpdate: "/update",
-  /** 設備別保守実績照会 */
   equipmentInquiry: "/equipment/maintenance-inquiry",
-  /** 保守実績データ入力・修正 */
   maintenanceEntry: "/maintenance/entry",
-  /** 設備マスタ修正 */
   equipmentEdit: "/equipment/edit",
-  /** 保守実績データ検索 */
   maintenanceSearch: "/maintenance/search",
-  /** 保守実績データ アップロード */
   maintenanceUpload: "/maintenance/upload",
-  /** 設備マスタ検索 */
+  nextInspection: "/maintenance/next-inspection",
   equipmentSearch: "/equipment/search",
-  /** 得意先マスタ検索 */
   customerSearch: "/customer/search",
-  /** 販売店マスタ検索 */
+  customerSearchResults: "/customer/search/results",
+  customerUpdate: "/customer/update",
   dealerSearch: "/dealer/search",
-  /** 画面URL一覧（開発用） */
+  controlFile: "/control-file",
+  masterMaker: "/master/maker",
+  masterModel: "/master/model",
+  masterWork: "/master/work",
+  masterIndustry: "/master/industry",
+  masterArea: "/master/area",
+  masterStaff: "/master/staff",
+  masterInputter: "/master/inputter",
+  masterDealer: "/master/dealer",
+  masterStatus: "/master/status",
+  masterGeneral: "/master/general",
   urlIndex: "/urls",
 } as const;
 
-/** 画面一覧表示用 */
 export const screenList = [
   { path: routes.menuReference, name: "メインメニュー（参照処理）" },
   { path: routes.menuUpdate, name: "メインメニュー（更新処理）" },
@@ -38,7 +37,21 @@ export const screenList = [
   { path: routes.equipmentEdit, name: "設備マスタ修正" },
   { path: routes.maintenanceSearch, name: "保守実績データ検索" },
   { path: routes.maintenanceUpload, name: "保守実績データ アップロード" },
+  { path: routes.nextInspection, name: "次回点検日自動更新" },
   { path: routes.equipmentSearch, name: "設備マスタ検索" },
   { path: routes.customerSearch, name: "得意先マスタ検索" },
+  { path: routes.customerSearchResults, name: "得意先マスタ検索結果" },
+  { path: routes.customerUpdate, name: "得意先マスタ更新" },
   { path: routes.dealerSearch, name: "販売店マスタ検索" },
+  { path: routes.controlFile, name: "コントロールファイル更新" },
+  { path: routes.masterMaker, name: "メーカーマスタ更新" },
+  { path: routes.masterModel, name: "機種マスタ更新" },
+  { path: routes.masterWork, name: "作業マスタ更新" },
+  { path: routes.masterIndustry, name: "業種マスタ更新" },
+  { path: routes.masterArea, name: "地区マスタ更新" },
+  { path: routes.masterStaff, name: "担当者マスタ更新" },
+  { path: routes.masterInputter, name: "入力者マスタ更新" },
+  { path: routes.masterDealer, name: "販売店マスタ更新" },
+  { path: routes.masterStatus, name: "運転状況マスタ更新" },
+  { path: routes.masterGeneral, name: "汎用マスタ更新" },
 ] as const;

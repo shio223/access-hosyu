@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["better-sqlite3"],
   async redirects() {
     return [
       // 短いURLエイリアス（ブックマーク・共有用）

@@ -1,11 +1,5 @@
 /**
  * メインメニュー（スイッチボード）
- *
- * 元のAccessアプリの起動画面を再現。
- * - reference: 参照処理（検索・照会系メニュー）
- * - update: 更新処理（マスタ更新系メニュー、未実装ボタンは href="#"）
- *
- * 4×4グリッドの空きスロットは元画面と同様に空白ボタンとして表示。
  */
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -15,7 +9,6 @@ import { AccessLinkButton } from "./access-button";
 
 type MenuMode = "reference" | "update";
 
-/** 参照処理メニューの16ボタン定義（4列×4行、左上から順） */
 const referenceButtons = [
   { label: "設備別\n保守実績照会", href: routes.equipmentInquiry, color: "black" as const },
   { label: "保守実績\nデータ検索", href: routes.maintenanceSearch, color: "black" as const },
@@ -35,24 +28,23 @@ const referenceButtons = [
   { label: "更新処理", href: routes.menuUpdate, color: "black" as const },
 ];
 
-/** 更新処理メニューの16ボタン定義。href="#" は今後実装予定の画面 */
 const updateButtons = [
-  { label: "保守実績\nデータ入力", href: "#", color: "blue" as const },
-  { label: "得意先マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "機種マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "メーカーマスタ\n更新", href: "#", color: "blue" as const },
-  { label: "次回点検日\n自動更新", href: "#", color: "green" as const },
-  { label: "設備マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "地区マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "汎用マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "入力者マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "販売店マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "業種マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "作業マスタ\n更新", href: "#", color: "blue" as const },
+  { label: "保守実績\nデータ入力", href: routes.maintenanceEntry, color: "blue" as const },
+  { label: "得意先マスタ\n更新", href: routes.customerUpdate, color: "blue" as const },
+  { label: "機種マスタ\n更新", href: routes.masterModel, color: "blue" as const },
+  { label: "メーカーマスタ\n更新", href: routes.masterMaker, color: "blue" as const },
+  { label: "次回点検日\n自動更新", href: routes.nextInspection, color: "green" as const },
+  { label: "設備マスタ\n更新", href: routes.equipmentEdit, color: "blue" as const },
+  { label: "地区マスタ\n更新", href: routes.masterArea, color: "blue" as const },
+  { label: "汎用マスタ\n更新", href: routes.masterGeneral, color: "blue" as const },
+  { label: "入力者マスタ\n更新", href: routes.masterInputter, color: "blue" as const },
+  { label: "販売店マスタ\n更新", href: routes.masterDealer, color: "blue" as const },
+  { label: "業種マスタ\n更新", href: routes.masterIndustry, color: "blue" as const },
+  { label: "作業マスタ\n更新", href: routes.masterWork, color: "blue" as const },
   { label: "保守実績データ\nアップロード", href: routes.maintenanceUpload, color: "green" as const },
-  { label: "運転状況\nマスタ更新", href: "#", color: "blue" as const },
-  { label: "担当者マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "コントロール\nファイル更新", href: "#", color: "blue" as const },
+  { label: "運転状況\nマスタ更新", href: routes.masterStatus, color: "blue" as const },
+  { label: "担当者マスタ\n更新", href: routes.masterStaff, color: "blue" as const },
+  { label: "コントロール\nファイル更新", href: routes.controlFile, color: "blue" as const },
 ];
 
 export function MainMenu({ mode }: { mode: MenuMode }) {
@@ -62,7 +54,6 @@ export function MainMenu({ mode }: { mode: MenuMode }) {
   return (
     <div className="min-h-screen bg-[#A0A0A0] flex items-center justify-center p-2 md:p-4">
       <div className="w-full max-w-[680px] border-2 border-[#404040] bg-[#D4D0C8] shadow-lg">
-        {/* Header */}
         <div className="bg-[#000080] text-white px-3 py-2">
           <div className="text-sm md:text-base font-bold">
             （有）シンコーエヤーサービス　保守管理システム
@@ -73,7 +64,6 @@ export function MainMenu({ mode }: { mode: MenuMode }) {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-[#808080] bg-[#D4D0C8]">
           <Link
             href={routes.menuReference}
@@ -99,16 +89,14 @@ export function MainMenu({ mode }: { mode: MenuMode }) {
           </Link>
         </div>
 
-        {/* Section label */}
         <div className="px-3 py-1 text-sm bg-[#D4D0C8]">{activeTab}</div>
 
-        {/* Button grid */}
         <div className="px-3 pb-2">
           <div className="bg-[#008080] p-2 md:p-3 border border-[#004040]">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 md:gap-2">
               {buttons.map((btn, i) =>
                 btn.label ? (
-                  btn.href && btn.href !== "#" ? (
+                  btn.href ? (
                     <AccessLinkButton
                       key={i}
                       href={btn.href}
@@ -145,7 +133,6 @@ export function MainMenu({ mode }: { mode: MenuMode }) {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end px-3 pb-3">
           <AccessExitButton href={routes.menuReference} />
         </div>

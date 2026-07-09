@@ -1,15 +1,13 @@
-/**
- * 保守実績データ検索画面
- * URL: /maintenance/search
- * 元フォーム: F-保守実績データ検索
- */
-import { routes } from "@/lib/routes";
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AccessFormWindow } from "@/components/access/access-form-window";
-import { AccessSearchForm } from "@/components/access/access-search-form";
+import { InteractiveSearchForm } from "@/components/access/interactive-search-form";
 import { SearchFooterButtons } from "@/components/access/search-footer-buttons";
 import type { SearchField } from "@/components/access/access-search-form";
+import { routes } from "@/lib/routes";
 
-/** 検索条件の項目定義（16項目） */
 const fields: SearchField[] = [
   { label: "得意先コード", type: "range-select" },
   { label: "設備番号", type: "range-select" },
@@ -26,14 +24,41 @@ const fields: SearchField[] = [
   { label: "担当者コード", type: "range-select" },
   { label: "電話番号", type: "range-text" },
   { label: "郵便番号", type: "range-text" },
-  { label: "住　　所", type: "single" },
+  { label: "住所", type: "single" },
 ];
 
+function emptyValues() {
+  return Object.fromEntries(fields.map((f) => [f.label, { from: "", to: "" }]));
+}
+
 export default function MaintenanceSearchPage() {
+  const router = useRouter();
+  const [values, setValues] = useState(emptyValues);
+
+  const handleChange = (label: string, part: "from" | "to", value: string) => {
+    setValues((prev) => ({
+      ...prev,
+      [label]: { ...prev[label], [part]: value },
+    }));
+  };
+
+  const handleSearch = () => {
+    const cc = values["得意先コード"]?.from ?? "";
+    const en = values["設備番号"]?.from ?? "";
+    const params = new URLSearchParams();
+    if (cc) params.set("customerCode", cc);
+    if (en) params.set("equipmentNo", en);
+    router.push(`${routes.equipmentInquiry}?${params.toString()}`);
+  };
+
   return (
     <AccessFormWindow title="F-保守実績データ検索" formTitle="保守実績データ検索画面">
-      <AccessSearchForm fields={fields} headerStyle="green" />
-      <SearchFooterButtons exitHref={routes.menuReference} />
+      <InteractiveSearchForm fields={fields} values={values} onChange={handleChange} headerStyle="green" />
+      <SearchFooterButtons
+        exitHref={routes.menuReference}
+        onSearch={handleSearch}
+        onClear={() => setValues(emptyValues())}
+      />
     </AccessFormWindow>
   );
 }
