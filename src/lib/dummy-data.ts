@@ -91,11 +91,11 @@ export const equipmentDetail = {
   equipmentNo: "058",
   equipmentName: "製袋No.1(第2特印3F)",
   statusCode: "1",
-  statusName: "稼動中",
+  statusName: "稼働中",
   modelCode: "01",
   modelName: "コンプレッサー",
   makerCode: "01",
-  makerName: "コベルコ 播磨機",
+  makerName: "コベルコ　播磨機",
   modelType: "VS22ADV4-JAH-1",
   managementNo: "J4HA410706(製袋No.1)",
   remarks:

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 得意先マスタ更新画面
+ * 販売店マスタ更新画面（添付画像どおり）
  */
 import { useState } from "react";
 import { AccessExitButton } from "./access-exit-button";
@@ -15,12 +15,12 @@ import { routes } from "@/lib/routes";
 
 type ProcessMode = "追加" | "修正" | "削除";
 
-export function CustomerMasterUpdate() {
+export function DealerMasterUpdate() {
   const [mode, setMode] = useState<ProcessMode>("追加");
   const [form, setForm] = useState({
-    customerCode: "",
-    customerName: "",
-    customerKana: "",
+    dealerCode: "",
+    dealerName: "",
+    dealerKana: "",
     postalCode: "",
     address1: "",
     address2: "",
@@ -28,8 +28,6 @@ export function CustomerMasterUpdate() {
     fax: "",
     repTitle: "",
     repName: "",
-    areaCode: "",
-    industryCode: "",
     staffCode: "",
     general1: "",
     general2: "",
@@ -49,10 +47,10 @@ export function CustomerMasterUpdate() {
   return (
     <div className="min-h-screen bg-[#A0A0A0] flex items-start justify-center p-4">
       <div className="border-2 border-[#404040] bg-[#D4D0C8] shadow-lg" style={{ width: 640 }}>
-        <div className="bg-[#D4D0C8] border-b border-[#808080] px-2 py-0.5 text-xs">F-得意先マスタ更新</div>
+        <div className="bg-[#D4D0C8] border-b border-[#808080] px-2 py-0.5 text-xs">F-販売店マスタ更新</div>
 
         <div className="bg-[#0000FF] text-white flex items-center justify-between px-3 py-1.5">
-          <span className="font-bold text-base">得意先マスタ更新</span>
+          <span className="font-bold text-base">販売店マスタ更新</span>
           <div className="flex items-center gap-2">
             <span className="bg-[#FFFF00] text-black px-2 py-0.5 text-xs font-bold border border-[#808080]">{today}</span>
             <button type="button" className="bg-[#008080] text-white border border-[#004040] px-3 py-0.5 text-xs rounded-none">確認</button>
@@ -77,12 +75,12 @@ export function CustomerMasterUpdate() {
         <div className="flex gap-3 px-3 pb-3">
           <div className="flex-1 space-y-0.5">
             <div className="flex gap-0.5">
-              <MasterLabel variant="green">得意先コード</MasterLabel>
-              <MasterField value={form.customerCode} onChange={set("customerCode")} />
+              <MasterLabel variant="green">販売店コード</MasterLabel>
+              <MasterField value={form.dealerCode} onChange={set("dealerCode")} />
             </div>
             {[
-              { label: "得意先名", key: "customerName" as const },
-              { label: "得意先カナ名", key: "customerKana" as const },
+              { label: "販売店名", key: "dealerName" as const },
+              { label: "販売店カナ名", key: "dealerKana" as const },
             ].map(({ label, key }) => (
               <div key={key} className="flex gap-0.5">
                 <MasterLabel>{label}</MasterLabel>
@@ -114,8 +112,6 @@ export function CustomerMasterUpdate() {
 
           <div className="flex-1 space-y-0.5">
             {[
-              { label: "地区コード", key: "areaCode" as const },
-              { label: "業種コード", key: "industryCode" as const },
               { label: "担当者コード", key: "staffCode" as const },
               { label: "汎用コード１", key: "general1" as const },
               { label: "汎用コード２", key: "general2" as const },

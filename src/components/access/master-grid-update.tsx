@@ -9,6 +9,20 @@ import { AccessExitButton } from "./access-exit-button";
 import { routes } from "@/lib/routes";
 import type { MasterRow } from "@/lib/master-data";
 
+const footerBtnStyle: React.CSSProperties = {
+  boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+};
+
+const cellInputStyle: React.CSSProperties = {
+  fontSize: 11,
+  width: "100%",
+  height: 18,
+  padding: "0 4px",
+  border: "none",
+  outline: "none",
+  background: "transparent",
+};
+
 export function MasterGridUpdate({
   windowTitle,
   formTitle,
@@ -26,12 +40,31 @@ export function MasterGridUpdate({
 }) {
   const [rows, setRows] = useState(initialRows);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [editMode, setEditMode] = useState(false);
+
+  const updateRow = (index: number, key: keyof MasterRow, value: string) => {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
+  };
 
   const handleDeleteRow = () => {
     if (rows.length === 0) return;
     const next = rows.filter((_, i) => i !== selectedIndex);
     setRows(next);
     setSelectedIndex(Math.min(selectedIndex, Math.max(0, next.length - 1)));
+  };
+
+  const handleAddRow = () => {
+    setRows((prev) => {
+      const next = [...prev, { code: "", name: "" }];
+      setSelectedIndex(next.length - 1);
+      return next;
+    });
+  };
+
+  const handleRegister = () => {
+    setRows((prev) => prev.filter((row) => row.code.trim() || row.name.trim()));
+    setEditMode(false);
+    alert("登録しました。");
   };
 
   const emptyRows = Math.max(0, 18 - rows.length);
@@ -60,12 +93,41 @@ export function MasterGridUpdate({
           <div className="max-h-[360px] overflow-y-auto bg-white">
             {rows.map((row, i) => (
               <div
-                key={`${row.code}-${i}`}
-                className={`flex border-b border-[#808080] text-xs cursor-pointer ${i === selectedIndex ? "bg-[#000080] text-white" : "bg-white text-black"}`}
+                key={i}
+                className={`flex border-b border-[#808080] text-xs ${i === selectedIndex ? "bg-[#000080] text-white" : "bg-white text-black"}`}
                 onClick={() => setSelectedIndex(i)}
               >
-                <div className="border-r border-[#808080] text-center" style={{ width: 72, padding: "2px 4px" }}>{row.code}</div>
-                <div className="flex-1" style={{ padding: "2px 6px" }}>{row.name}</div>
+                <div className="border-r border-[#808080]" style={{ width: 72, padding: editMode ? 0 : "2px 4px" }}>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={row.code}
+                      onChange={(e) => updateRow(i, "code", e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-center text-black"
+                      style={{ ...cellInputStyle, background: "#fff" }}
+                    />
+                  ) : (
+                    <div className="text-center">{row.code}</div>
+                  )}
+                </div>
+                <div className="flex-1" style={{ padding: editMode ? 0 : "2px 6px" }}>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={row.name}
+                      onChange={(e) => updateRow(i, "name", e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-black"
+                      style={{
+                        ...cellInputStyle,
+                        background: "#fff",
+                      }}
+                    />
+                  ) : (
+                    row.name
+                  )}
+                </div>
               </div>
             ))}
             {Array.from({ length: emptyRows }).map((_, i) => (
@@ -78,14 +140,45 @@ export function MasterGridUpdate({
         </div>
 
         <div className="flex items-center justify-between bg-[#008080] px-2 py-1.5 border-t border-[#004040]">
-          <button
-            type="button"
-            onClick={handleDeleteRow}
-            className="bg-[#C0C0C0] border border-[#808080] text-[#FF0000] font-bold px-3 py-0.5 text-sm rounded-none"
-            style={{ boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080" }}
-          >
-            行削除
-          </button>
+          <div className="flex gap-2">
+            {!editMode ? (
+              <button
+                type="button"
+                onClick={() => setEditMode(true)}
+                className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none"
+                style={footerBtnStyle}
+              >
+                編集
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleAddRow}
+                  className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none"
+                  style={footerBtnStyle}
+                >
+                  追加
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteRow}
+                  className="bg-[#C0C0C0] border border-[#808080] text-[#FF0000] font-bold px-3 py-0.5 text-sm rounded-none"
+                  style={footerBtnStyle}
+                >
+                  削除
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRegister}
+                  className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none"
+                  style={footerBtnStyle}
+                >
+                  登録
+                </button>
+              </>
+            )}
+          </div>
           <AccessExitButton href={exitHref} />
         </div>
       </div>
