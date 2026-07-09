@@ -144,7 +144,7 @@ export function EquipmentMaintenanceInquiry() {
   };
 
   return (
-    <div className={`min-h-screen print:bg-white ${displayMode ? "bg-white" : "bg-[#C0C0C0]"}`}>
+    <div className={`inquiry-print-page min-h-screen print:bg-white ${displayMode ? "bg-white" : "bg-[#C0C0C0]"}`}>
       {!displayMode && (
         <div className="print:hidden">
           <AccessRibbon />
@@ -152,7 +152,7 @@ export function EquipmentMaintenanceInquiry() {
       )}
 
       {/* 横スクロール領域：画面が狭くてもレイアウトは980px固定 */}
-      <div className="overflow-x-auto print:overflow-visible">
+      <div className="inquiry-print-container overflow-x-auto print:overflow-visible">
         <div
           className="inquiry-form-fixed mx-auto border-2 border-[#404040] bg-[#D4D0C8] shadow-lg print:border-0 print:shadow-none"
           style={{ width: FORM_WIDTH, minWidth: FORM_WIDTH, maxWidth: FORM_WIDTH }}

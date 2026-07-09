@@ -17,6 +17,8 @@ export const routes = {
   equipmentEdit: "/equipment/edit",
   /** 保守実績データ検索 */
   maintenanceSearch: "/maintenance/search",
+  /** 保守実績データ アップロード */
+  maintenanceUpload: "/maintenance/upload",
   /** 設備マスタ検索 */
   equipmentSearch: "/equipment/search",
   /** 得意先マスタ検索 */
@@ -35,6 +37,7 @@ export const screenList = [
   { path: routes.maintenanceEntry, name: "保守実績データ入力・修正" },
   { path: routes.equipmentEdit, name: "設備マスタ修正" },
   { path: routes.maintenanceSearch, name: "保守実績データ検索" },
+  { path: routes.maintenanceUpload, name: "保守実績データ アップロード" },
   { path: routes.equipmentSearch, name: "設備マスタ検索" },
   { path: routes.customerSearch, name: "得意先マスタ検索" },
   { path: routes.dealerSearch, name: "販売店マスタ検索" },

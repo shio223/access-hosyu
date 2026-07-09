@@ -138,9 +138,14 @@ select {
 }
 
 /*
- * 印刷用スタイル
- * 設備別保守実績照会を作業確認用紙として印刷する際の設定。
+ * 印刷用スタイル（設備別保守実績照会専用）
+ * 縦方向A4。980px固定レイアウトを縮小して用紙幅に収める。
  */
+@page inquiry-a4 {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
 @media print {
   * {
     -webkit-print-color-adjust: exact !important;
@@ -151,15 +156,19 @@ select {
     background: #fff !important;
   }
 
-  @page {
-    size: landscape;
-    margin: 8mm;
+  /* 照会画面のみ縦A4・縮小印刷 */
+  .inquiry-print-page .inquiry-print-container {
+    display: flex;
+    justify-content: center;
+    overflow: visible;
   }
 
-  /* 印刷時も980px固定レイアウトを維持 */
-  .inquiry-form-fixed {
+  .inquiry-print-page .inquiry-form-fixed {
+    page: inquiry-a4;
     width: 980px !important;
     min-width: 980px !important;
     max-width: 980px !important;
+    transform: scale(0.72);
+    transform-origin: top center;
   }
 }

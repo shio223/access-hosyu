@@ -49,7 +49,7 @@ const updateButtons = [
   { label: "販売店マスタ\n更新", href: "#", color: "blue" as const },
   { label: "業種マスタ\n更新", href: "#", color: "blue" as const },
   { label: "作業マスタ\n更新", href: "#", color: "blue" as const },
-  { label: "", href: "", color: "black" as const },
+  { label: "保守実績データ\nアップロード", href: routes.maintenanceUpload, color: "green" as const },
   { label: "運転状況\nマスタ更新", href: "#", color: "blue" as const },
   { label: "担当者マスタ\n更新", href: "#", color: "blue" as const },
   { label: "コントロール\nファイル更新", href: "#", color: "blue" as const },
