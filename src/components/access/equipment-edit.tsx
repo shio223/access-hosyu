@@ -4,9 +4,7 @@
  * 設備マスタ更新画面（添付画像どおり）
  */
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { equipmentDetail } from "@/lib/dummy-data";
 import { AccessExitButton } from "./access-exit-button";
 import {
   MasterField,
@@ -28,36 +26,34 @@ function Row({ label, children, labelWidth = 88 }: { label: string; children: Re
 }
 
 export function EquipmentEdit() {
-  const router = useRouter();
-  const [mode, setMode] = useState<ProcessMode>("修正");
-  const cycleMatch = equipmentDetail.inspectionCycle.match(/^(\d+)/);
+  const [mode, setMode] = useState<ProcessMode>("追加");
   const [form, setForm] = useState({
-    customerCode: equipmentDetail.customerCode,
-    customerName: equipmentDetail.customerName,
-    equipmentNo: equipmentDetail.equipmentNo,
-    equipmentName: equipmentDetail.equipmentName,
-    revisionDate: equipmentDetail.revisionDate,
-    modelCode: equipmentDetail.modelCode,
-    modelName: equipmentDetail.modelName,
-    makerCode: equipmentDetail.makerCode,
-    makerName: equipmentDetail.makerName,
-    modelType: equipmentDetail.modelType,
-    managementNo: equipmentDetail.managementNo,
-    dealer1: equipmentDetail.dealer1,
-    dealer2: equipmentDetail.dealer2,
-    dealer3: equipmentDetail.dealer3,
-    deliveryDate: equipmentDetail.deliveryDate,
-    inspectionCycle: cycleMatch?.[1] ?? equipmentDetail.inspectionCycle,
-    nextInspectionDate: equipmentDetail.nextInspectionDate,
-    inspectionNotice: "1",
-    oilUsed: equipmentDetail.oilUsed,
-    statusCode: equipmentDetail.statusCode,
-    statusName: equipmentDetail.statusName,
+    customerCode: "",
+    customerName: "",
+    equipmentNo: "",
+    equipmentName: "",
+    revisionDate: "",
+    modelCode: "",
+    modelName: "",
+    makerCode: "",
+    makerName: "",
+    modelType: "",
+    managementNo: "",
+    dealer1: "",
+    dealer2: "",
+    dealer3: "",
+    deliveryDate: "",
+    inspectionCycle: "",
+    nextInspectionDate: "",
+    inspectionNotice: "",
+    oilUsed: "",
+    statusCode: "",
+    statusName: "",
     general1: "",
     general2: "",
     general3: "",
     general4: "",
-    remarks: equipmentDetail.remarks,
+    remarks: "",
   });
 
   const set = (key: keyof typeof form) => (v: string) =>
@@ -70,8 +66,7 @@ export function EquipmentEdit() {
   });
 
   const handleConfirm = () => {
-    alert("登録しました。（デモ：実際の保存は今後DB接続後に実装）");
-    router.push(routes.equipmentInquiry);
+    alert("登録しました。");
   };
 
   const footerBtnStyle: React.CSSProperties = {

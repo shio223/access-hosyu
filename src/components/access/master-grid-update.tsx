@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * コード＋名称のマスタ更新画面（業種・作業・メーカー・担当者等で共通利用）
- * Accessの「○○マスタ更新」フォームを再現。
+ * コード＋名称のマスタ更新画面
+ * 更新処理用：空の状態から登録。参照・検索は参照処理メニュー側。
  */
 import { useState } from "react";
 import { AccessExitButton } from "./access-exit-button";
 import { routes } from "@/lib/routes";
 import type { MasterRow } from "@/lib/master-data";
+import type { MasterType } from "@/lib/master-registry";
 
 const footerBtnStyle: React.CSSProperties = {
   boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
@@ -24,23 +25,24 @@ const cellInputStyle: React.CSSProperties = {
 };
 
 export function MasterGridUpdate({
+  masterType,
   windowTitle,
   formTitle,
   codeLabel,
   nameLabel,
-  initialRows,
   exitHref = routes.menuUpdate,
 }: {
+  masterType: MasterType;
   windowTitle: string;
   formTitle: string;
   codeLabel: string;
   nameLabel: string;
-  initialRows: MasterRow[];
   exitHref?: string;
 }) {
-  const [rows, setRows] = useState(initialRows);
+  const [rows, setRows] = useState<MasterRow[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const updateRow = (index: number, key: keyof MasterRow, value: string) => {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
@@ -61,10 +63,34 @@ export function MasterGridUpdate({
     });
   };
 
-  const handleRegister = () => {
-    setRows((prev) => prev.filter((row) => row.code.trim() || row.name.trim()));
-    setEditMode(false);
-    alert("登録しました。");
+  const handleRegister = async () => {
+    const nextRows = rows.filter((row) => row.code.trim() || row.name.trim());
+    if (nextRows.length === 0) {
+      alert("登録するデータがありません。");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/masters/${masterType}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: nextRows }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error ?? "登録に失敗しました。");
+        return;
+      }
+      setRows([]);
+      setSelectedIndex(0);
+      setEditMode(false);
+      alert(data.message ?? "登録しました。");
+    } catch {
+      alert("登録に失敗しました。");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const emptyRows = Math.max(0, 18 - rows.length);
@@ -106,6 +132,7 @@ export function MasterGridUpdate({
                       onClick={(e) => e.stopPropagation()}
                       className="text-center text-black"
                       style={{ ...cellInputStyle, background: "#fff" }}
+                      disabled={saving}
                     />
                   ) : (
                     <div className="text-center">{row.code}</div>
@@ -119,10 +146,8 @@ export function MasterGridUpdate({
                       onChange={(e) => updateRow(i, "name", e.target.value)}
                       onClick={(e) => e.stopPropagation()}
                       className="text-black"
-                      style={{
-                        ...cellInputStyle,
-                        background: "#fff",
-                      }}
+                      style={{ ...cellInputStyle, background: "#fff" }}
+                      disabled={saving}
                     />
                   ) : (
                     row.name
@@ -145,7 +170,8 @@ export function MasterGridUpdate({
               <button
                 type="button"
                 onClick={() => setEditMode(true)}
-                className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none"
+                disabled={saving}
+                className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none disabled:text-[#808080]"
                 style={footerBtnStyle}
               >
                 編集
@@ -155,7 +181,8 @@ export function MasterGridUpdate({
                 <button
                   type="button"
                   onClick={handleAddRow}
-                  className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none"
+                  disabled={saving}
+                  className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none disabled:text-[#808080]"
                   style={footerBtnStyle}
                 >
                   追加
@@ -163,7 +190,8 @@ export function MasterGridUpdate({
                 <button
                   type="button"
                   onClick={handleDeleteRow}
-                  className="bg-[#C0C0C0] border border-[#808080] text-[#FF0000] font-bold px-3 py-0.5 text-sm rounded-none"
+                  disabled={saving}
+                  className="bg-[#C0C0C0] border border-[#808080] text-[#FF0000] font-bold px-3 py-0.5 text-sm rounded-none disabled:text-[#808080]"
                   style={footerBtnStyle}
                 >
                   削除
@@ -171,10 +199,11 @@ export function MasterGridUpdate({
                 <button
                   type="button"
                   onClick={handleRegister}
-                  className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none"
+                  disabled={saving}
+                  className="bg-[#C0C0C0] border border-[#808080] text-black font-bold px-3 py-0.5 text-sm rounded-none disabled:text-[#808080]"
                   style={footerBtnStyle}
                 >
-                  登録
+                  {saving ? "登録中..." : "登録"}
                 </button>
               </>
             )}

@@ -69,4 +69,16 @@ CREATE TABLE IF NOT EXISTS import_meta (
   value TEXT NOT NULL,
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS masters (
+  master_type TEXT NOT NULL,
+  code TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (master_type, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_masters_type_order
+  ON masters(master_type, sort_order);
 `;

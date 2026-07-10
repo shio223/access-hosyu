@@ -4,7 +4,6 @@
  * コントロールファイル更新画面
  */
 import { useState } from "react";
-import { controlFileData } from "@/lib/master-data";
 import { AccessExitButton } from "./access-exit-button";
 import { routes } from "@/lib/routes";
 
@@ -16,7 +15,18 @@ const fieldStyle: React.CSSProperties = {
 };
 
 export function ControlFileUpdate() {
-  const [form, setForm] = useState(controlFileData);
+  const [form, setForm] = useState({
+    companyName: "",
+    postalCode: "",
+    address1: "",
+    address2: "",
+    phone: "",
+    fax: "",
+    taxRateOld: "",
+    taxRateNew: "",
+    taxRevisionDate: "",
+    fiscalMonth: "",
+  });
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
