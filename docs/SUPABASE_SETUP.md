@@ -28,7 +28,7 @@ SUPABASE_SERVICE_ROLE_KEY=（service_role ※NEXT_PUBLIC_ を付けない）
 AUTH_LOGIN_EMAIL=（社内共通ユーザーの Auth メール ※サーバー専用）
 ```
 
-ログインは犬イラストを左→右へ3回撫でる方式です（ID/パスワード入力はありません）。  
+ログインは犬イラストを左→右へ1回撫でる方式です（ID/パスワード入力はありません）。  
 サーバーが `AUTH_LOGIN_EMAIL` の共通 Auth ユーザーでセッションを発行します（メール・パスワードはフロントに書きません）。  
 `service_role` は pet-login API（サーバー）のみで使用し、ブラウザには出しません。
 

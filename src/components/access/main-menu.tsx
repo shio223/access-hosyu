@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { routes } from "@/lib/routes";
 import { isUpdateMenuAuthenticated, setUpdateMenuAuthenticated } from "@/lib/menu-auth";
+import { clearSessionGate } from "@/lib/auth/session-gate";
 import { ExitIcon } from "./access-exit-button";
 import { AccessLinkButton } from "./access-button";
 import { PasswordDialog } from "./password-dialog";
@@ -185,6 +186,7 @@ export function MainMenu({ mode }: { mode: MenuMode }) {
               type="button"
               className="text-xs text-[#000080] underline bg-transparent border-0 cursor-pointer"
               onClick={async () => {
+                clearSessionGate();
                 await fetch("/api/auth/logout", { method: "POST" });
                 router.replace(routes.login);
                 router.refresh();
@@ -195,6 +197,7 @@ export function MainMenu({ mode }: { mode: MenuMode }) {
             <button
               type="button"
               onClick={async () => {
+                clearSessionGate();
                 await fetch("/api/auth/logout", { method: "POST" });
                 router.replace(routes.login);
                 router.refresh();

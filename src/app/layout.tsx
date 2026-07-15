@@ -5,6 +5,7 @@
  * Access風の見た目のため Meiryo / MS PGothic を優先するフォントスタックを使用。
  */
 import type { Metadata } from "next";
+import { SessionGate } from "@/components/access/session-gate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="ja" className="h-full">
       <body className="min-h-full flex flex-col font-[Meiryo,'MS_PGothic','Hiragino_Kaku_Gothic_ProN',sans-serif] antialiased">
-        {children}
+        <SessionGate>{children}</SessionGate>
       </body>
     </html>
   );

@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { clearSessionGate, setSessionGate } from "@/lib/auth/session-gate";
 
-const REQUIRED_PETS = 3;
+const REQUIRED_PETS = 1;
 const MIN_SWIPE_DX = 48;
-const IDLE_RESET_MS = 8000;
 
 type Stroke = {
   pointerId: number;
@@ -15,20 +15,17 @@ type Stroke = {
 };
 
 /**
- * 犬を左→右へ3回なでなでしてログイン。
+ * 犬を左→右へ1回撫でてログイン。
  * 認証本体は /api/auth/pet-login（サーバー側）。
  */
 export function DogPetLogin() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
-  const [pets, setPets] = useState(0);
-  const [message, setMessage] = useState("犬を左から右へ撫でてください");
   const [bark, setBark] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const strokeRef = useRef<Stroke | null>(null);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const petsRef = useRef(0);
   const finishingRef = useRef(false);
   const clearedSessionRef = useRef(false);
@@ -37,37 +34,16 @@ export function DogPetLogin() {
   useEffect(() => {
     if (clearedSessionRef.current) return;
     clearedSessionRef.current = true;
+    clearSessionGate();
     void fetch("/api/auth/logout", { method: "POST" }).then(() => {
       router.refresh();
     });
   }, [router]);
 
-  const clearIdleTimer = () => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
-  };
-
   const resetPets = useCallback(() => {
     petsRef.current = 0;
-    setPets(0);
     setBark(false);
-    setMessage("犬を左から右へ撫でてください");
-    clearIdleTimer();
   }, []);
-
-  const bumpIdleTimer = useCallback(() => {
-    clearIdleTimer();
-    idleTimerRef.current = setTimeout(() => {
-      petsRef.current = 0;
-      setPets(0);
-      setBark(false);
-      setMessage("時間切れです。もう一度撫でてください");
-    }, IDLE_RESET_MS);
-  }, []);
-
-  useEffect(() => () => clearIdleTimer(), []);
 
   const finishLogin = useCallback(async () => {
     if (finishingRef.current) return;
@@ -75,7 +51,6 @@ export function DogPetLogin() {
     setLoading(true);
     setError("");
     setBark(true);
-    setMessage("わん！");
     try {
       await new Promise((r) => setTimeout(r, 700));
       const res = await fetch("/api/auth/pet-login", {
@@ -85,17 +60,20 @@ export function DogPetLogin() {
       });
       if (!res.ok) {
         setBark(false);
-        setError("入れませんでした。少し待ってからもう一度撫でてください");
+        setError("入れませんでした。少し待ってからもう一度お試しください");
+        clearSessionGate();
         resetPets();
         finishingRef.current = false;
         setLoading(false);
         return;
       }
+      setSessionGate();
       router.replace(next);
       router.refresh();
     } catch {
       setBark(false);
       setError("入れませんでした");
+      clearSessionGate();
       resetPets();
       finishingRef.current = false;
       setLoading(false);
@@ -106,15 +84,10 @@ export function DogPetLogin() {
     if (finishingRef.current || loading) return;
     const nextCount = petsRef.current + 1;
     petsRef.current = nextCount;
-    setPets(nextCount);
-    bumpIdleTimer();
     if (nextCount >= REQUIRED_PETS) {
-      clearIdleTimer();
       void finishLogin();
-    } else {
-      setMessage(`いい子！ あと ${REQUIRED_PETS - nextCount} 回撫でてください`);
     }
-  }, [bumpIdleTimer, finishLogin, loading]);
+  }, [finishLogin, loading]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (loading || finishingRef.current) return;
@@ -161,8 +134,6 @@ export function DogPetLogin() {
           保守管理システム　ログイン
         </div>
 
-        <p className="text-xs text-center mb-2 text-[#000080]">{message}</p>
-
         <div
           className="relative mx-auto select-none touch-none cursor-grab active:cursor-grabbing bg-[#E8E4DC] border border-[#808080]"
           style={{
@@ -179,7 +150,7 @@ export function DogPetLogin() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/login-dog.png"
-            alt="なでなで用のゴールデンレトリバー"
+            alt=""
             draggable={false}
             className={`mx-auto mt-2 pointer-events-none transition-transform object-contain ${
               bark ? "scale-110" : ""
@@ -196,24 +167,9 @@ export function DogPetLogin() {
           )}
         </div>
 
-        <div className="flex justify-center gap-2 mt-3 mb-1">
-          {Array.from({ length: REQUIRED_PETS }).map((_, i) => (
-            <span
-              key={i}
-              className={`inline-block border border-[#808080] ${
-                i < pets ? "bg-[#000080]" : "bg-white"
-              }`}
-              style={{ width: 14, height: 14 }}
-              aria-hidden
-            />
-          ))}
-        </div>
-
-        <p className="text-[10px] text-center text-[#404040]">
-          {loading
-            ? "入室中..."
-            : "左から右へスワイプ（クリックだけでは開けません）"}
-        </p>
+        {loading && (
+          <p className="text-[10px] text-center text-[#404040] mt-3">入室中...</p>
+        )}
         {error && (
           <p className="text-[#CC0000] text-[10px] text-center mt-2">{error}</p>
         )}
