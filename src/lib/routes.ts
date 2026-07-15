@@ -4,6 +4,7 @@
 export const routes = {
   menuReference: "/",
   menuUpdate: "/update",
+  login: "/login",
   equipmentInquiry: "/equipment/maintenance-inquiry",
   maintenanceEntry: "/maintenance/entry",
   equipmentEdit: "/equipment/edit",

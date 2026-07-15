@@ -14,7 +14,9 @@ import { AccessExitButton } from "./access-exit-button";
 import type { EquipmentDetail, MaintenanceRecord } from "@/lib/db/types";
 import { cn } from "@/lib/utils";
 
-const FORM_WIDTH = 980;
+const FORM_WIDTH = 1000;
+/** 履歴テーブルの空行数（枠のみ表示用） */
+const EMPTY_HISTORY_ROWS = 8;
 
 const EMPTY_DETAIL: EquipmentDetail = {
   customerCode: "",
@@ -53,11 +55,15 @@ const inputStyle: React.CSSProperties = {
   boxShadow: "inset 1px 1px 2px #808080",
 };
 
+/** 添付Access画面の「前／現在／次」に近いスタイル */
 const navBtnStyle: React.CSSProperties = {
   fontSize: 11,
-  padding: "0 6px",
+  padding: "0 8px",
   height: 20,
-  boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+  background: "#FFFFFF",
+  color: "#000080",
+  border: "1px solid #000080",
+  borderRadius: 3,
 };
 
 function FieldLabel({
@@ -75,7 +81,8 @@ function FieldLabel({
     <div
       className={cn(
         "shrink-0 border border-[#808080] flex items-center px-1",
-        variant === "yellow" ? "bg-[#FFFF66]" : "bg-[#99FF99]",
+        // 添付画面寄り: 淡黄ラベル（一部緑は従来どおり）
+        variant === "yellow" ? "bg-[#FFFF99]" : "bg-[#99FF99]",
         className
       )}
       style={{ fontSize: 11, lineHeight: "14px", height: 20, ...style }}
@@ -111,7 +118,7 @@ function CodeNameRow({
   label,
   code,
   name,
-  labelVariant = "green",
+  labelVariant = "yellow",
   labelWidth = 88,
   codeWidth = 44,
 }: {
@@ -127,7 +134,9 @@ function CodeNameRow({
       <FieldLabel variant={labelVariant} style={{ width: labelWidth }}>
         {label}
       </FieldLabel>
-      <FieldValue style={{ width: codeWidth, justifyContent: "center" }}>{code}</FieldValue>
+      <FieldValue style={{ width: codeWidth, justifyContent: "center" }}>
+        {code || "\u00A0"}
+      </FieldValue>
       <FieldValue className="flex-1" style={{ flex: 1 }}>
         {name || "\u00A0"}
       </FieldValue>
@@ -206,7 +215,7 @@ function CustomerSearchRow({
 
   return (
     <div className="flex items-stretch relative" style={{ gap: 1, marginBottom: 1 }} ref={wrapRef}>
-      <FieldLabel variant="green" style={{ width: 88 }}>
+      <FieldLabel variant="yellow" style={{ width: 88 }}>
         得意先コード
       </FieldLabel>
       <div className="flex" style={{ gap: 1 }}>
@@ -305,7 +314,7 @@ function EquipmentSearchRow({
 
   return (
     <div className="flex items-stretch relative" style={{ gap: 1, marginBottom: 1 }} ref={wrapRef}>
-      <FieldLabel variant="green" style={{ width: 88 }}>
+      <FieldLabel variant="yellow" style={{ width: 88 }}>
         設備番号
       </FieldLabel>
       <div className="flex" style={{ gap: 1 }}>
@@ -553,15 +562,14 @@ export function EquipmentMaintenanceInquiry() {
           )}
 
           <div
-            className="bg-[#0000CC] text-white flex items-center print:bg-[#0000CC]"
-            style={{ padding: "4px 8px", height: 28 }}
+            className="bg-[#0000AA] text-white flex items-center print:bg-[#0000AA]"
+            style={{ padding: "4px 10px", height: 32 }}
           >
-            <div style={{ width: 120 }} />
-            <h1 className="font-bold text-center shrink-0" style={{ fontSize: 14, flex: 1 }}>
+            <div style={{ width: 130 }} />
+            <h1 className="font-bold text-center shrink-0" style={{ fontSize: 15, flex: 1, letterSpacing: 2 }}>
               設備別保守実績照会
-              {loading && <span style={{ fontSize: 10, marginLeft: 8 }}>検索中...</span>}
             </h1>
-            <div className="flex justify-end print:invisible" style={{ width: 120, gap: 4 }}>
+            <div className="flex justify-end items-center print:invisible" style={{ width: 130, gap: 6 }}>
               {!displayMode &&
                 ["前", "現在", "次"].map((btn) => (
                   <button
@@ -569,7 +577,7 @@ export function EquipmentMaintenanceInquiry() {
                     type="button"
                     onClick={() => handleHeaderNav(btn)}
                     disabled={btn !== "現在" && !hasRecord}
-                    className="bg-[#D4D0C8] text-black border border-[#808080] rounded-none disabled:text-[#808080]"
+                    className="rounded-sm disabled:opacity-50"
                     style={navBtnStyle}
                   >
                     {btn}
@@ -578,25 +586,26 @@ export function EquipmentMaintenanceInquiry() {
             </div>
           </div>
 
-          <div className="bg-[#D4D0C8] print:bg-white" style={{ padding: 6 }}>
+          <div className="bg-[#C0C0C0] print:bg-white" style={{ padding: "6px 8px 8px" }}>
             <div className="flex justify-end" style={{ marginBottom: 4 }}>
               <div className="flex" style={{ gap: 1 }}>
                 <FieldLabel variant="yellow" style={{ width: 52, justifyContent: "center" }}>
                   修正日
                 </FieldLabel>
                 <FieldValue style={{ width: 88, justifyContent: "center" }}>
-                  {d.revisionDate || "\u00A0"}
+                  {"\u00A0"}
                 </FieldValue>
               </div>
             </div>
 
-            <div className="flex" style={{ gap: 8 }}>
+            <div className="flex" style={{ gap: 6 }}>
+              {/* 左列 */}
               <div style={{ width: 360, flexShrink: 0 }}>
                 {!displayMode ? (
                   <>
                     <CustomerSearchRow
                       customerCode={searchCustomerCode}
-                      customerName={searchCustomerName}
+                      customerName=""
                       onCustomerCodeChange={(code) => {
                         setSearchCustomerCode(code);
                         setSearchCustomerName("");
@@ -614,7 +623,7 @@ export function EquipmentMaintenanceInquiry() {
                     <EquipmentSearchRow
                       customerCode={searchCustomerCode}
                       equipmentNo={searchEquipmentNo}
-                      equipmentName={searchEquipmentName}
+                      equipmentName=""
                       onEquipmentNoChange={setSearchEquipmentNo}
                       onSelect={(item) => {
                         setSearchEquipmentNo(item.equipmentNo);
@@ -625,97 +634,104 @@ export function EquipmentMaintenanceInquiry() {
                   </>
                 ) : (
                   <>
-                    <CodeNameRow label="得意先コード" code={d.customerCode} name={d.customerName} />
-                    <CodeNameRow label="設備番号" code={d.equipmentNo} name={d.equipmentName} />
+                    <CodeNameRow label="得意先コード" code="" name="" />
+                    <CodeNameRow label="設備番号" code="" name="" />
                   </>
                 )}
-                <CodeNameRow label="運転状況CD" code={d.statusCode} name={d.statusName} />
-                <CodeNameRow label="機種コード" code={d.modelCode} name={d.modelName} />
-                <CodeNameRow label="メーカーコード" code={d.makerCode} name={d.makerName} />
-                <SimpleRow label="型　　式" value={d.modelType} labelVariant="green" labelWidth={88} />
-                <SimpleRow label="管理番号" value={d.managementNo} labelVariant="green" labelWidth={88} />
+                <CodeNameRow label="運転状況CD" code="" name="" />
+                <CodeNameRow label="機種コード" code="" name="" />
+                <CodeNameRow label="メーカーコード" code="" name="" />
+                <SimpleRow label="型　　式" value="" labelVariant="yellow" labelWidth={88} />
+                <SimpleRow label="管理番号" value="" labelVariant="yellow" labelWidth={88} />
               </div>
 
+              {/* 中列 */}
               <div style={{ width: 200, flexShrink: 0 }}>
-                <SimpleRow label="郵便番号" value={d.postalCode} />
-                <SimpleRow label="電話番号" value={d.phone} />
-                <SimpleRow label="納 入 日" value={d.deliveryDate} />
-                <SimpleRow label="点検周期" value={d.inspectionCycle} />
-                <SimpleRow label="次回点検日" value={d.nextInspectionDate} />
-                <SimpleRow label="点検案内" value={d.inspectionNotice} />
+                <SimpleRow label="郵便番号" value="" />
+                <SimpleRow label="電話番号" value="" />
+                <SimpleRow label="納 入 日" value="" />
+                <SimpleRow label="点検周期" value="" />
+                <SimpleRow label="次回点検日" value="" />
+                <SimpleRow label="点検案内" value="" />
               </div>
 
-              <div style={{ width: 392, flexShrink: 0 }}>
-                <SimpleRow label="住 所 1" value={d.address1} labelWidth={72} />
-                <SimpleRow label="住 所 2" value={d.address2} labelWidth={72} />
-                <SimpleRow label="1次販売店" value={d.dealer1} labelWidth={72} />
-                <SimpleRow label="2次販売店" value={d.dealer2} labelWidth={72} />
-                <SimpleRow label="3次販売店" value={d.dealer3} labelWidth={72} />
-                <SimpleRow label="使用オイル" value={d.oilUsed} labelWidth={72} />
+              {/* 右列 */}
+              <div style={{ width: 400, flexShrink: 0 }}>
+                <SimpleRow label="住 所 1" value="" labelWidth={72} />
+                <SimpleRow label="住 所 2" value="" labelWidth={72} />
+                <SimpleRow label="1次販売店" value="" labelWidth={72} />
+                <SimpleRow label="2次販売店" value="" labelWidth={72} />
+                <SimpleRow label="3次販売店" value="" labelWidth={72} />
+                <SimpleRow label="使用オイル" value="" labelWidth={72} />
               </div>
             </div>
 
             <div className="flex items-stretch" style={{ gap: 1, marginTop: 4 }}>
-              <FieldLabel variant="green" style={{ width: 88, alignSelf: "stretch", height: "auto", minHeight: 52 }}>
+              <FieldLabel
+                variant="yellow"
+                style={{ width: 88, alignSelf: "stretch", height: "auto", minHeight: 56 }}
+              >
                 備　　考
               </FieldLabel>
               <div
-                className="flex-1 bg-white border border-[#808080] whitespace-pre-line"
-                style={{ fontSize: 11, lineHeight: "14px", padding: "2px 4px", minHeight: 52 }}
+                className="flex-1 bg-white border border-[#808080]"
+                style={{ fontSize: 11, lineHeight: "14px", padding: "2px 4px", minHeight: 56 }}
               >
-                {d.remarks || "\u00A0"}
+                {"\u00A0"}
               </div>
             </div>
 
-            <div className="border border-[#808080]" style={{ marginTop: 6 }}>
+            {/* 履歴テーブル枠（空行で枠だけ確保） */}
+            <div className="border border-[#808080]" style={{ marginTop: 8 }}>
               <table className="border-collapse w-full" style={{ fontSize: 11, tableLayout: "fixed" }}>
                 <colgroup>
-                  <col style={{ width: 76 }} />
-                  <col style={{ width: 52 }} />
-                  <col style={{ width: 380 }} />
-                  <col style={{ width: 60 }} />
-                  <col style={{ width: 52 }} />
+                  <col style={{ width: 80 }} />
+                  <col style={{ width: 56 }} />
+                  <col />
+                  <col style={{ width: 64 }} />
+                  <col style={{ width: 56 }} />
                   <col style={{ width: 88 }} />
-                  <col style={{ width: 76 }} />
+                  <col style={{ width: 80 }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-[#008000] text-white">
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>作業日</th>
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>作業コード</th>
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>作業内容</th>
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>稼働時間</th>
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>客先担当</th>
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>担当者コード</th>
-                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "2px 4px" }}>入力者コード</th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      作業日
+                    </th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      作業コード
+                    </th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      作業内容
+                    </th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      稼働時間
+                    </th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      客先担当
+                    </th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      担当者コード
+                    </th>
+                    <th className="border border-[#004000] font-bold text-center" style={{ padding: "3px 4px" }}>
+                      入力者コード
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.length === 0 ? (
-                    <tr className="bg-white">
-                      <td colSpan={7} className="border border-[#808080]" style={{ padding: "8px 4px", height: 48 }} />
+                  {Array.from({ length: EMPTY_HISTORY_ROWS }).map((_, i) => (
+                    <tr key={i} className="bg-white">
+                      {Array.from({ length: 7 }).map((__, j) => (
+                        <td
+                          key={j}
+                          className="border border-[#808080]"
+                          style={{ padding: "2px 4px", height: 20 }}
+                        >
+                          {"\u00A0"}
+                        </td>
+                      ))}
                     </tr>
-                  ) : (
-                    history.map((row, i) => (
-                      <tr key={i} className="bg-white">
-                        <td className="border border-[#808080]" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>{row.workDate}</td>
-                        <td className="border border-[#808080] text-center" style={{ padding: "2px 4px" }}>{row.workCode}</td>
-                        <td className="border border-[#808080]" style={{ padding: "2px 4px" }}>
-                          <span style={{ display: "inline-block", width: 60, verticalAlign: "top" }}>{row.workType}</span>
-                          <span>{row.workContent}</span>
-                        </td>
-                        <td className="border border-[#808080] text-right" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>{row.operatingHours}</td>
-                        <td className="border border-[#808080] text-center" style={{ padding: "2px 4px" }}>{row.customerContact}</td>
-                        <td className="border border-[#808080]" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>
-                          <span style={{ display: "inline-block", width: 20 }}>{row.staffCode}</span>
-                          {row.staffName}
-                        </td>
-                        <td className="border border-[#808080]" style={{ padding: "2px 4px", whiteSpace: "nowrap" }}>
-                          <span style={{ display: "inline-block", width: 20 }}>{row.inputterCode}</span>
-                          {row.inputterName}
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -723,19 +739,19 @@ export function EquipmentMaintenanceInquiry() {
 
           {!displayMode && (
             <div
-              className="flex items-center bg-[#D4D0C8] border-t border-[#808080] print:hidden"
-              style={{ padding: "8px 12px", height: 44 }}
+              className="flex items-center bg-[#C0C0C0] border-t border-[#808080] print:hidden"
+              style={{ padding: "10px 16px", minHeight: 48 }}
             >
-              <div className="flex-1 flex justify-center" style={{ gap: 16 }}>
+              <div className="flex-1 flex justify-center" style={{ gap: 20 }}>
                 {["印　刷", "画面表示", "実績修正", "設備修正"].map((label) => (
                   <button
                     key={label}
                     type="button"
                     onClick={() => handleButtonClick(label)}
-                    className="bg-[#D4D0C8] border border-[#808080] rounded-none shrink-0"
+                    className="bg-[#F0F0F0] border border-[#000080] rounded-none shrink-0 text-[#000080]"
                     style={{
                       fontSize: 13,
-                      padding: "2px 16px",
+                      padding: "2px 18px",
                       height: 28,
                       boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
                     }}
@@ -749,11 +765,14 @@ export function EquipmentMaintenanceInquiry() {
           )}
 
           {displayMode && (
-            <div className="flex justify-end border-t border-[#808080] bg-[#D4D0C8]" style={{ padding: "8px 12px" }}>
+            <div
+              className="flex justify-end border-t border-[#808080] bg-[#C0C0C0]"
+              style={{ padding: "8px 12px" }}
+            >
               <button
                 type="button"
                 onClick={() => setDisplayMode(false)}
-                className="bg-[#D4D0C8] border border-[#808080] rounded-none"
+                className="bg-[#F0F0F0] border border-[#000080] rounded-none text-[#000080]"
                 style={{
                   fontSize: 13,
                   padding: "2px 16px",
@@ -768,7 +787,7 @@ export function EquipmentMaintenanceInquiry() {
 
           {!displayMode && (
             <div
-              className="flex items-center bg-[#D4D0C8] border-t border-[#808080] print:hidden"
+              className="flex items-center bg-[#C0C0C0] border-t border-[#808080] print:hidden"
               style={{ padding: "4px 8px", fontSize: 11, gap: 8, height: 28 }}
             >
               <span>レコード:</span>
@@ -798,8 +817,6 @@ export function EquipmentMaintenanceInquiry() {
                 {hasRecord ? currentIndex + 1 : 0}
               </span>
               <span>/ {results.length || 0}</span>
-              <span className="text-[#0000CC]">{filterLabel}</span>
-              {statusMessage && <span className="text-[#CC0000]">{statusMessage}</span>}
               <div className="flex-1" />
               <span>検索</span>
               <input

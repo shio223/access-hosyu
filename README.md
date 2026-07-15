@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 保守管理システム（Access 互換 Web）
 
-## Getting Started
+本番データは **Supabase** を使用します。セットアップは [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) を参照してください。
 
-First, run the development server:
+## ローカル起動
 
 ```bash
+cp .env.local.example .env.local
+# .env.local に Supabase URL / anon / service_role を設定
+# SQL Editor で supabase/migrations/001_customers_maintenance_records.sql を実行
+# Authentication でユーザーを作成
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+未ログイン時は `/login` へリダイレクトされます。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## データインポート（CLI）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 書き込みなし（件数・紐付け率の確認）
+npm run import:supabase -- --dry-run
 
-## Learn More
+# 本番投入（確認後に明示実行）
+npm run import:supabase -- --execute
+```
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`import-data/` 内の Excel は Git 管理対象外です。`data/hosyu.db`（SQLite）は当面削除しません。

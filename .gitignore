@@ -24,6 +24,9 @@
 /data/*.db
 /data/*.db-*
 
+# company import data (confidential; do not commit)
+/import-data/
+
 # misc
 .DS_Store
 *.pem
@@ -36,6 +39,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
 
 # vercel
 .vercel

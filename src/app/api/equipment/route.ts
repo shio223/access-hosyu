@@ -1,52 +1,188 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getEquipmentDetail,
-  getMaintenanceHistory,
-  listEquipmentKeys,
-  lookupCustomers,
-  lookupEquipment,
-  searchEquipmentList,
-} from "@/lib/db/queries";
+import { createClient } from "@/lib/supabase/server";
+import type { EquipmentDetail, MaintenanceRecord } from "@/lib/db/types";
 
 export const runtime = "nodejs";
 
-/** 設備情報の取得・検索・ルックアップ */
+const EMPTY_DETAIL = (partial: Partial<EquipmentDetail>): EquipmentDetail => ({
+  customerCode: "",
+  customerName: "",
+  equipmentNo: "",
+  equipmentName: "",
+  statusCode: "",
+  statusName: "",
+  modelCode: "",
+  modelName: "",
+  makerCode: "",
+  makerName: "",
+  modelType: "",
+  managementNo: "",
+  remarks: "",
+  postalCode: "",
+  phone: "",
+  address1: "",
+  address2: "",
+  deliveryDate: "",
+  inspectionCycle: "",
+  nextInspectionDate: "",
+  inspectionNotice: "",
+  dealer1: "",
+  dealer2: "",
+  dealer3: "",
+  oilUsed: "",
+  revisionDate: "",
+  ...partial,
+});
+
+async function requireUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return { supabase, user };
+}
+
+/**
+ * 設備照会API（設備マスタ未移行のため、実績の得意先コード＋設備番号で照会）
+ * 得意先名は customers を LEFT JOIN 相当で付与。
+ */
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = request.nextUrl;
+    const { supabase, user } = await requireUser();
+    if (!user) {
+      return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+    }
+
+    const searchParams = request.nextUrl.searchParams;
     const lookup = searchParams.get("lookup");
 
     if (lookup === "customers") {
-      const q = searchParams.get("q") ?? undefined;
-      return NextResponse.json({ items: lookupCustomers(q) });
+      const q = (searchParams.get("q") ?? "").trim();
+      let query = supabase
+        .from("customers")
+        .select("customer_code, customer_name")
+        .order("customer_code")
+        .limit(100);
+      if (q) {
+        query = query.or(
+          `customer_code.ilike.%${q}%,customer_name.ilike.%${q}%`
+        );
+      }
+      const { data, error } = await query;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        items: (data ?? []).map((r) => ({
+          customerCode: r.customer_code,
+          customerName: r.customer_name ?? "",
+        })),
+      });
     }
 
     if (lookup === "equipment") {
-      const customerCode = searchParams.get("customerCode") ?? "";
-      const q = searchParams.get("q") ?? undefined;
-      return NextResponse.json({ items: lookupEquipment(customerCode, q) });
-    }
-
-    if (searchParams.get("list") === "true") {
-      return NextResponse.json({ items: listEquipmentKeys() });
+      const customerCode = (searchParams.get("customerCode") ?? "").trim();
+      const q = (searchParams.get("q") ?? "").trim();
+      if (!customerCode) {
+        return NextResponse.json({ items: [] });
+      }
+      let query = supabase
+        .from("maintenance_records")
+        .select("equipment_no")
+        .eq("customer_code", customerCode)
+        .order("equipment_no")
+        .limit(500);
+      if (q) query = query.ilike("equipment_no", `%${q}%`);
+      const { data, error } = await query;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      const seen = new Set<string>();
+      const items: { equipmentNo: string; equipmentName: string }[] = [];
+      for (const r of data ?? []) {
+        if (seen.has(r.equipment_no)) continue;
+        seen.add(r.equipment_no);
+        items.push({ equipmentNo: r.equipment_no, equipmentName: "" });
+      }
+      return NextResponse.json({ items });
     }
 
     if (searchParams.get("search") === "true") {
-      const items = searchEquipmentList({
-        customerCode: searchParams.get("customerCode") ?? undefined,
-        equipmentNo: searchParams.get("equipmentNo") ?? undefined,
-        customerName: searchParams.get("customerName") ?? undefined,
-        equipmentName: searchParams.get("equipmentName") ?? undefined,
-        modelType: searchParams.get("modelType") ?? undefined,
-        managementNo: searchParams.get("managementNo") ?? undefined,
-        q: searchParams.get("q") ?? undefined,
+      const customerCode = (searchParams.get("customerCode") ?? "").trim();
+      const equipmentNo = (searchParams.get("equipmentNo") ?? "").trim();
+      const q = (searchParams.get("q") ?? "").trim();
+
+      let query = supabase
+        .from("maintenance_records")
+        .select("customer_code, equipment_no")
+        .limit(2000);
+
+      if (customerCode) query = query.eq("customer_code", customerCode);
+      if (equipmentNo) query = query.eq("equipment_no", equipmentNo);
+      if (q) {
+        query = query.or(
+          `customer_code.ilike.%${q}%,equipment_no.ilike.%${q}%`
+        );
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      const keySet = new Map<string, { customerCode: string; equipmentNo: string }>();
+      for (const r of data ?? []) {
+        const key = `${r.customer_code}\t${r.equipment_no}`;
+        if (!keySet.has(key)) {
+          keySet.set(key, {
+            customerCode: r.customer_code,
+            equipmentNo: r.equipment_no,
+          });
+        }
+      }
+
+      const pairs = [...keySet.values()].slice(0, 500);
+      const codes = [...new Set(pairs.map((p) => p.customerCode))];
+      const custDetail = new Map<
+        string,
+        {
+          customer_name: string | null;
+          postal_code: string | null;
+          phone: string | null;
+          address1: string | null;
+          address2: string | null;
+        }
+      >();
+      if (codes.length > 0) {
+        const { data: custs } = await supabase
+          .from("customers")
+          .select(
+            "customer_code, customer_name, postal_code, phone, address1, address2"
+          )
+          .in("customer_code", codes);
+        for (const c of custs ?? []) {
+          custDetail.set(c.customer_code, c);
+        }
+      }
+
+      const items: EquipmentDetail[] = pairs.map((p) => {
+        const c = custDetail.get(p.customerCode);
+        return EMPTY_DETAIL({
+          customerCode: p.customerCode,
+          customerName: c?.customer_name ?? "",
+          equipmentNo: p.equipmentNo,
+          postalCode: c?.postal_code ?? "",
+          phone: c?.phone ?? "",
+          address1: c?.address1 ?? "",
+          address2: c?.address2 ?? "",
+        });
       });
 
       return NextResponse.json({ items, total: items.length });
     }
 
-    const customerCode = searchParams.get("customerCode");
-    const equipmentNo = searchParams.get("equipmentNo");
+    const customerCode = (searchParams.get("customerCode") ?? "").trim();
+    const equipmentNo = (searchParams.get("equipmentNo") ?? "").trim();
 
     if (!customerCode || !equipmentNo) {
       return NextResponse.json(
@@ -55,18 +191,67 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const detail = getEquipmentDetail(customerCode, equipmentNo);
+    const { data: cust } = await supabase
+      .from("customers")
+      .select(
+        "customer_code, customer_name, postal_code, phone, address1, address2"
+      )
+      .eq("customer_code", customerCode)
+      .maybeSingle();
 
-    if (!detail) {
-      return NextResponse.json({ error: "該当する設備が見つかりません" }, { status: 404 });
+    const { data: histRows, error: histErr } = await supabase
+      .from("maintenance_records")
+      .select(
+        "work_date, work_code, work_content, operating_hours, customer_contact, staff_code, inputter_code"
+      )
+      .eq("customer_code", customerCode)
+      .eq("equipment_no", equipmentNo)
+      .order("work_date", { ascending: false, nullsFirst: false });
+
+    if (histErr) {
+      return NextResponse.json({ error: histErr.message }, { status: 500 });
     }
 
-    const history = getMaintenanceHistory(detail.customerCode, detail.equipmentNo);
+    if ((!histRows || histRows.length === 0) && !cust) {
+      return NextResponse.json(
+        { error: "該当する設備が見つかりません" },
+        { status: 404 }
+      );
+    }
+
+    const detail = EMPTY_DETAIL({
+      customerCode,
+      customerName: cust?.customer_name ?? "",
+      equipmentNo,
+      postalCode: cust?.postal_code ?? "",
+      phone: cust?.phone ?? "",
+      address1: cust?.address1 ?? "",
+      address2: cust?.address2 ?? "",
+    });
+
+    const history: MaintenanceRecord[] = (histRows ?? []).map((r) => ({
+      workDate: r.work_date ?? "",
+      workCode: r.work_code ?? "",
+      workType: "",
+      workContent: r.work_content ?? "",
+      operatingHours:
+        r.operating_hours == null ? "" : String(r.operating_hours),
+      customerContact: r.customer_contact ?? "",
+      staffCode: r.staff_code ?? "",
+      staffName: "",
+      inputterCode: r.inputter_code ?? "",
+      inputterName: "",
+    }));
 
     return NextResponse.json({ detail, history });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "設備データの取得に失敗しました" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "設備データの取得に失敗しました",
+      },
       { status: 500 }
     );
   }
