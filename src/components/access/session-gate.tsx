@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   clearSessionGate,
@@ -9,61 +9,65 @@ import {
 import { routes } from "@/lib/routes";
 
 /**
- * リロードやアドレスバーでのURL変更（pagehide）後はゲートが消えるためログアウト。
- * アプリ内の Link 等による遷移では pagehide が起きないのでログイン維持。
+ * リロード・アドレスバー変更・タブ閉じ時はゲート消滅 → 再入室が必要。
+ * アプリ内 Link / router 遷移では beforeunload が起きないのでログイン維持。
+ * （pagehide はタブ切替でも発火するため使わない）
  */
 export function SessionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === routes.login;
   const [ready, setReady] = useState(isLogin);
+  const loggingOutRef = useRef(false);
 
   useEffect(() => {
-    const onPageHide = () => {
+    const onBeforeUnload = () => {
       clearSessionGate();
     };
-    window.addEventListener("pagehide", onPageHide);
-    return () => window.removeEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const forceLogout = async () => {
+      if (loggingOutRef.current) return;
+      loggingOutRef.current = true;
       setReady(false);
+      clearSessionGate();
       try {
         await fetch("/api/auth/logout", { method: "POST" });
       } catch {
         /* ignore */
       }
-      if (cancelled) return;
-      clearSessionGate();
+      if (cancelled) {
+        loggingOutRef.current = false;
+        return;
+      }
       router.replace(routes.login);
       router.refresh();
+      loggingOutRef.current = false;
     };
 
-    const ensureGate = () => {
-      if (isLogin) {
-        setReady(true);
-        return;
-      }
-      if (hasSessionGate()) {
-        setReady(true);
-        return;
-      }
-      void forceLogout();
-    };
+    if (isLogin) {
+      setReady(true);
+      loggingOutRef.current = false;
+      return () => {
+        cancelled = true;
+      };
+    }
 
-    ensureGate();
+    if (hasSessionGate()) {
+      setReady(true);
+      return () => {
+        cancelled = true;
+      };
+    }
 
-    const onPageShow = () => {
-      ensureGate();
-    };
-    window.addEventListener("pageshow", onPageShow);
-
+    void forceLogout();
     return () => {
       cancelled = true;
-      window.removeEventListener("pageshow", onPageShow);
     };
   }, [isLogin, pathname, router]);
 

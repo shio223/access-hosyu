@@ -28,16 +28,25 @@ export function DogPetLogin() {
   const strokeRef = useRef<Stroke | null>(null);
   const petsRef = useRef(0);
   const finishingRef = useRef(false);
-  const clearedSessionRef = useRef(false);
+  const logoutAbortRef = useRef<AbortController | null>(null);
 
   // ログイン画面を開いたら既存セッションを切る（犬をスキップして入れないようにする）
+  // Strict Mode の二重実行や、入室直後に遅延した logout がクッキーを消すのを abort で防ぐ
   useEffect(() => {
-    if (clearedSessionRef.current) return;
-    clearedSessionRef.current = true;
     clearSessionGate();
-    void fetch("/api/auth/logout", { method: "POST" }).then(() => {
-      router.refresh();
-    });
+    const ac = new AbortController();
+    logoutAbortRef.current = ac;
+    void fetch("/api/auth/logout", { method: "POST", signal: ac.signal })
+      .then(() => {
+        if (!ac.signal.aborted) router.refresh();
+      })
+      .catch(() => {
+        /* aborted or network */
+      });
+    return () => {
+      ac.abort();
+      if (logoutAbortRef.current === ac) logoutAbortRef.current = null;
+    };
   }, [router]);
 
   const resetPets = useCallback(() => {
@@ -51,16 +60,26 @@ export function DogPetLogin() {
     setLoading(true);
     setError("");
     setBark(true);
+
+    // 入室処理中にマウント時 logout が後から走るのを止める
+    logoutAbortRef.current?.abort();
+    logoutAbortRef.current = null;
+
     try {
-      await new Promise((r) => setTimeout(r, 700));
+      await new Promise((r) => setTimeout(r, 400));
       const res = await fetch("/api/auth/pet-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gesture: "pet-complete" }),
       });
       if (!res.ok) {
+        const status = res.status;
         setBark(false);
-        setError("入れませんでした。少し待ってからもう一度お試しください");
+        setError(
+          status === 429
+            ? "しばらくしてからもう一度お試しください"
+            : "入れませんでした。もう一度撫でてください"
+        );
         clearSessionGate();
         resetPets();
         finishingRef.current = false;
@@ -72,7 +91,7 @@ export function DogPetLogin() {
       router.refresh();
     } catch {
       setBark(false);
-      setError("入れませんでした");
+      setError("入れませんでした。もう一度撫でてください");
       clearSessionGate();
       resetPets();
       finishingRef.current = false;
@@ -117,7 +136,6 @@ export function DogPetLogin() {
       /* already released */
     }
     const dx = s.maxX - s.startX;
-    // 単なるクリック（移動ほぼなし）は無効。左→右の一定距離以上のみ
     if (dx >= MIN_SWIPE_DX) {
       registerPet();
     }
