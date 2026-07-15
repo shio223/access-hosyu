@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { EquipmentDetail, MaintenanceRecord } from "@/lib/db/types";
+import {
+  normalizeSearchCode,
+  normalizeSearchText,
+} from "@/lib/search-normalize";
 
 export const runtime = "nodejs";
 
@@ -57,7 +61,7 @@ export async function GET(request: NextRequest) {
     const lookup = searchParams.get("lookup");
 
     if (lookup === "customers") {
-      const q = (searchParams.get("q") ?? "").trim();
+      const q = normalizeSearchText(searchParams.get("q"));
       let query = supabase
         .from("customers")
         .select("customer_code, customer_name")
@@ -81,8 +85,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (lookup === "equipment") {
-      const customerCode = (searchParams.get("customerCode") ?? "").trim();
-      const q = (searchParams.get("q") ?? "").trim();
+      const customerCode = normalizeSearchCode(searchParams.get("customerCode"));
+      const q = normalizeSearchCode(searchParams.get("q"));
       if (!customerCode) {
         return NextResponse.json({ items: [] });
       }
@@ -108,9 +112,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (searchParams.get("search") === "true") {
-      const customerCode = (searchParams.get("customerCode") ?? "").trim();
-      const equipmentNo = (searchParams.get("equipmentNo") ?? "").trim();
-      const q = (searchParams.get("q") ?? "").trim();
+      const customerCode = normalizeSearchCode(searchParams.get("customerCode"));
+      const equipmentNo = normalizeSearchCode(searchParams.get("equipmentNo"));
+      const q = normalizeSearchText(searchParams.get("q"));
 
       let query = supabase
         .from("maintenance_records")
@@ -181,8 +185,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items, total: items.length });
     }
 
-    const customerCode = (searchParams.get("customerCode") ?? "").trim();
-    const equipmentNo = (searchParams.get("equipmentNo") ?? "").trim();
+    const customerCode = normalizeSearchCode(searchParams.get("customerCode"));
+    const equipmentNo = normalizeSearchCode(searchParams.get("equipmentNo"));
 
     if (!customerCode || !equipmentNo) {
       return NextResponse.json(

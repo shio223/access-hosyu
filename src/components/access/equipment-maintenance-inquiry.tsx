@@ -13,10 +13,19 @@ import { routes } from "@/lib/routes";
 import { AccessExitButton } from "./access-exit-button";
 import type { EquipmentDetail, MaintenanceRecord } from "@/lib/db/types";
 import { cn } from "@/lib/utils";
+import { normalizeSearchCode } from "@/lib/search-normalize";
 
 const FORM_WIDTH = 1000;
 /** 履歴テーブルの空行数（枠のみ表示用） */
 const EMPTY_HISTORY_ROWS = 8;
+
+function formatTodayDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}/${m}/${d}`;
+}
 
 const EMPTY_DETAIL: EquipmentDetail = {
   customerCode: "",
@@ -382,6 +391,7 @@ export function EquipmentMaintenanceInquiry() {
 
   const hasRecord = currentIndex >= 0 && results.length > 0;
   const d = hasRecord ? detail : EMPTY_DETAIL;
+  const revisionDateDisplay = formatTodayDate();
 
   const loadHistory = useCallback(async (customerCode: string, equipmentNo: string) => {
     const res = await fetch(
@@ -423,13 +433,17 @@ export function EquipmentMaintenanceInquiry() {
       setStatusMessage("検索中...");
 
       const params = new URLSearchParams({ search: "true" });
-      const cc = filter?.customerCode ?? searchCustomerCode;
-      const en = filter?.equipmentNo ?? searchEquipmentNo;
-      const q = filter?.q;
+      const cc = normalizeSearchCode(filter?.customerCode ?? searchCustomerCode);
+      const en = normalizeSearchCode(filter?.equipmentNo ?? searchEquipmentNo);
+      const q = filter?.q?.normalize("NFKC").trim() ?? "";
 
-      if (cc.trim()) params.set("customerCode", cc.trim());
-      if (en.trim()) params.set("equipmentNo", en.trim());
-      if (q?.trim()) params.set("q", q.trim());
+      // 入力欄も半角寄りにそろえる（全角数字でも同じ結果）
+      if (cc !== searchCustomerCode) setSearchCustomerCode(cc);
+      if (en !== searchEquipmentNo) setSearchEquipmentNo(en);
+
+      if (cc) params.set("customerCode", cc);
+      if (en) params.set("equipmentNo", en);
+      if (q) params.set("q", q);
 
       try {
         const res = await fetch(`/api/equipment?${params}`);
@@ -459,9 +473,9 @@ export function EquipmentMaintenanceInquiry() {
         }
 
         const labelParts: string[] = [];
-        if (cc.trim()) labelParts.push(`得意先:${cc}`);
-        if (en.trim()) labelParts.push(`設備:${en}`);
-        if (q?.trim()) labelParts.push(`検索:${q}`);
+        if (cc) labelParts.push(`得意先:${cc}`);
+        if (en) labelParts.push(`設備:${en}`);
+        if (q) labelParts.push(`検索:${q}`);
         setFilterLabel(labelParts.length > 0 ? labelParts.join(" ") : "フィルターなし");
 
         await showRecord(items[0], 0, items);
@@ -492,9 +506,12 @@ export function EquipmentMaintenanceInquiry() {
     const equipmentNo = params.get("equipmentNo");
 
     if (customerCode && equipmentNo) {
-      setSearchCustomerCode(customerCode);
-      setSearchEquipmentNo(equipmentNo);
-      performSearch({ customerCode, equipmentNo });
+      setSearchCustomerCode(normalizeSearchCode(customerCode));
+      setSearchEquipmentNo(normalizeSearchCode(equipmentNo));
+      performSearch({
+        customerCode: normalizeSearchCode(customerCode),
+        equipmentNo: normalizeSearchCode(equipmentNo),
+      });
     }
   }, [performSearch]);
 
@@ -568,6 +585,9 @@ export function EquipmentMaintenanceInquiry() {
             <div style={{ width: 130 }} />
             <h1 className="font-bold text-center shrink-0" style={{ fontSize: 15, flex: 1, letterSpacing: 2 }}>
               設備別保守実績照会
+              {loading && (
+                <span style={{ fontSize: 10, marginLeft: 8, fontWeight: "normal" }}>検索中...</span>
+              )}
             </h1>
             <div className="flex justify-end items-center print:invisible" style={{ width: 130, gap: 6 }}>
               {!displayMode &&
@@ -593,7 +613,7 @@ export function EquipmentMaintenanceInquiry() {
                   修正日
                 </FieldLabel>
                 <FieldValue style={{ width: 88, justifyContent: "center" }}>
-                  {"\u00A0"}
+                  {revisionDateDisplay}
                 </FieldValue>
               </div>
             </div>
@@ -605,7 +625,7 @@ export function EquipmentMaintenanceInquiry() {
                   <>
                     <CustomerSearchRow
                       customerCode={searchCustomerCode}
-                      customerName=""
+                      customerName={searchCustomerName || d.customerName}
                       onCustomerCodeChange={(code) => {
                         setSearchCustomerCode(code);
                         setSearchCustomerName("");
@@ -623,7 +643,7 @@ export function EquipmentMaintenanceInquiry() {
                     <EquipmentSearchRow
                       customerCode={searchCustomerCode}
                       equipmentNo={searchEquipmentNo}
-                      equipmentName=""
+                      equipmentName={searchEquipmentName || d.equipmentName}
                       onEquipmentNoChange={setSearchEquipmentNo}
                       onSelect={(item) => {
                         setSearchEquipmentNo(item.equipmentNo);
@@ -631,38 +651,79 @@ export function EquipmentMaintenanceInquiry() {
                       }}
                       onSearch={() => performSearch()}
                     />
+                    <div
+                      className="flex justify-end print:hidden"
+                      style={{ marginTop: 4, marginBottom: 2 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => performSearch()}
+                        disabled={loading || !searchCustomerCode.trim()}
+                        className="bg-[#F0F0F0] border border-[#000080] rounded-none text-[#000080] disabled:text-[#808080] disabled:border-[#808080]"
+                        style={{
+                          fontSize: 12,
+                          padding: "1px 16px",
+                          height: 22,
+                          boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080",
+                        }}
+                      >
+                        検索
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <>
-                    <CodeNameRow label="得意先コード" code="" name="" />
-                    <CodeNameRow label="設備番号" code="" name="" />
+                    <CodeNameRow
+                      label="得意先コード"
+                      code={d.customerCode}
+                      name={d.customerName}
+                    />
+                    <CodeNameRow
+                      label="設備番号"
+                      code={d.equipmentNo}
+                      name={d.equipmentName}
+                    />
                   </>
                 )}
-                <CodeNameRow label="運転状況CD" code="" name="" />
-                <CodeNameRow label="機種コード" code="" name="" />
-                <CodeNameRow label="メーカーコード" code="" name="" />
-                <SimpleRow label="型　　式" value="" labelVariant="yellow" labelWidth={88} />
-                <SimpleRow label="管理番号" value="" labelVariant="yellow" labelWidth={88} />
+                <CodeNameRow label="運転状況CD" code={d.statusCode} name={d.statusName} />
+                <CodeNameRow label="機種コード" code={d.modelCode} name={d.modelName} />
+                <CodeNameRow
+                  label="メーカーコード"
+                  code={d.makerCode}
+                  name={d.makerName}
+                />
+                <SimpleRow
+                  label="型　　式"
+                  value={d.modelType}
+                  labelVariant="yellow"
+                  labelWidth={88}
+                />
+                <SimpleRow
+                  label="管理番号"
+                  value={d.managementNo}
+                  labelVariant="yellow"
+                  labelWidth={88}
+                />
               </div>
 
               {/* 中列 */}
               <div style={{ width: 200, flexShrink: 0 }}>
-                <SimpleRow label="郵便番号" value="" />
-                <SimpleRow label="電話番号" value="" />
-                <SimpleRow label="納 入 日" value="" />
-                <SimpleRow label="点検周期" value="" />
-                <SimpleRow label="次回点検日" value="" />
-                <SimpleRow label="点検案内" value="" />
+                <SimpleRow label="郵便番号" value={d.postalCode} />
+                <SimpleRow label="電話番号" value={d.phone} />
+                <SimpleRow label="納 入 日" value={d.deliveryDate} />
+                <SimpleRow label="点検周期" value={d.inspectionCycle} />
+                <SimpleRow label="次回点検日" value={d.nextInspectionDate} />
+                <SimpleRow label="点検案内" value={d.inspectionNotice} />
               </div>
 
               {/* 右列 */}
               <div style={{ width: 400, flexShrink: 0 }}>
-                <SimpleRow label="住 所 1" value="" labelWidth={72} />
-                <SimpleRow label="住 所 2" value="" labelWidth={72} />
-                <SimpleRow label="1次販売店" value="" labelWidth={72} />
-                <SimpleRow label="2次販売店" value="" labelWidth={72} />
-                <SimpleRow label="3次販売店" value="" labelWidth={72} />
-                <SimpleRow label="使用オイル" value="" labelWidth={72} />
+                <SimpleRow label="住 所 1" value={d.address1} labelWidth={72} />
+                <SimpleRow label="住 所 2" value={d.address2} labelWidth={72} />
+                <SimpleRow label="1次販売店" value={d.dealer1} labelWidth={72} />
+                <SimpleRow label="2次販売店" value={d.dealer2} labelWidth={72} />
+                <SimpleRow label="3次販売店" value={d.dealer3} labelWidth={72} />
+                <SimpleRow label="使用オイル" value={d.oilUsed} labelWidth={72} />
               </div>
             </div>
 
@@ -674,14 +735,14 @@ export function EquipmentMaintenanceInquiry() {
                 備　　考
               </FieldLabel>
               <div
-                className="flex-1 bg-white border border-[#808080]"
+                className="flex-1 bg-white border border-[#808080] whitespace-pre-line"
                 style={{ fontSize: 11, lineHeight: "14px", padding: "2px 4px", minHeight: 56 }}
               >
-                {"\u00A0"}
+                {d.remarks || "\u00A0"}
               </div>
             </div>
 
-            {/* 履歴テーブル枠（空行で枠だけ確保） */}
+            {/* 履歴テーブル（検索結果の作業日などを反映） */}
             <div className="border border-[#808080]" style={{ marginTop: 8 }}>
               <table className="border-collapse w-full" style={{ fontSize: 11, tableLayout: "fixed" }}>
                 <colgroup>
@@ -719,19 +780,83 @@ export function EquipmentMaintenanceInquiry() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Array.from({ length: EMPTY_HISTORY_ROWS }).map((_, i) => (
-                    <tr key={i} className="bg-white">
-                      {Array.from({ length: 7 }).map((__, j) => (
-                        <td
-                          key={j}
-                          className="border border-[#808080]"
-                          style={{ padding: "2px 4px", height: 20 }}
-                        >
-                          {"\u00A0"}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {history.length === 0
+                    ? Array.from({ length: EMPTY_HISTORY_ROWS }).map((_, i) => (
+                        <tr key={`empty-${i}`} className="bg-white">
+                          {Array.from({ length: 7 }).map((__, j) => (
+                            <td
+                              key={j}
+                              className="border border-[#808080]"
+                              style={{ padding: "2px 4px", height: 20 }}
+                            >
+                              {"\u00A0"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    : (
+                      <>
+                        {history.map((row, i) => (
+                          <tr key={`h-${i}`} className="bg-white">
+                            <td
+                              className="border border-[#808080]"
+                              style={{ padding: "2px 4px", whiteSpace: "nowrap" }}
+                            >
+                              {row.workDate || "\u00A0"}
+                            </td>
+                            <td
+                              className="border border-[#808080] text-center"
+                              style={{ padding: "2px 4px" }}
+                            >
+                              {row.workCode || "\u00A0"}
+                            </td>
+                            <td className="border border-[#808080]" style={{ padding: "2px 4px" }}>
+                              {row.workContent || "\u00A0"}
+                            </td>
+                            <td
+                              className="border border-[#808080] text-right"
+                              style={{ padding: "2px 4px", whiteSpace: "nowrap" }}
+                            >
+                              {row.operatingHours || "\u00A0"}
+                            </td>
+                            <td
+                              className="border border-[#808080] text-center"
+                              style={{ padding: "2px 4px" }}
+                            >
+                              {row.customerContact || "\u00A0"}
+                            </td>
+                            <td
+                              className="border border-[#808080]"
+                              style={{ padding: "2px 4px", whiteSpace: "nowrap" }}
+                            >
+                              {row.staffCode || "\u00A0"}
+                            </td>
+                            <td
+                              className="border border-[#808080]"
+                              style={{ padding: "2px 4px", whiteSpace: "nowrap" }}
+                            >
+                              {row.inputterCode || "\u00A0"}
+                            </td>
+                          </tr>
+                        ))}
+                        {history.length < EMPTY_HISTORY_ROWS &&
+                          Array.from({ length: EMPTY_HISTORY_ROWS - history.length }).map(
+                            (_, i) => (
+                              <tr key={`pad-${i}`} className="bg-white">
+                                {Array.from({ length: 7 }).map((__, j) => (
+                                  <td
+                                    key={j}
+                                    className="border border-[#808080]"
+                                    style={{ padding: "2px 4px", height: 20 }}
+                                  >
+                                    {"\u00A0"}
+                                  </td>
+                                ))}
+                              </tr>
+                            )
+                          )}
+                      </>
+                    )}
                 </tbody>
               </table>
             </div>
@@ -817,6 +942,8 @@ export function EquipmentMaintenanceInquiry() {
                 {hasRecord ? currentIndex + 1 : 0}
               </span>
               <span>/ {results.length || 0}</span>
+              <span className="text-[#0000CC]">{filterLabel}</span>
+              {statusMessage && <span className="text-[#CC0000]">{statusMessage}</span>}
               <div className="flex-1" />
               <span>検索</span>
               <input

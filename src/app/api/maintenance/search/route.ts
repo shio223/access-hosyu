@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  normalizeSearchCode,
+  normalizeSearchText,
+} from "@/lib/search-normalize";
 
 export const runtime = "nodejs";
 
@@ -42,14 +46,14 @@ export async function GET(request: NextRequest) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const customerCode = (sp.get("customerCode") ?? "").trim();
-    const customerName = (sp.get("customerName") ?? "").trim();
-    const equipmentNo = (sp.get("equipmentNo") ?? "").trim();
-    const workDateFrom = (sp.get("workDateFrom") ?? "").trim();
-    const workDateTo = (sp.get("workDateTo") ?? "").trim();
-    const workCode = (sp.get("workCode") ?? "").trim();
-    const workContent = (sp.get("workContent") ?? "").trim();
-    const staffCode = (sp.get("staffCode") ?? "").trim();
+    const customerCode = normalizeSearchCode(sp.get("customerCode"));
+    const customerName = normalizeSearchText(sp.get("customerName"));
+    const equipmentNo = normalizeSearchCode(sp.get("equipmentNo"));
+    const workDateFrom = normalizeSearchText(sp.get("workDateFrom"));
+    const workDateTo = normalizeSearchText(sp.get("workDateTo"));
+    const workCode = normalizeSearchCode(sp.get("workCode"));
+    const workContent = normalizeSearchText(sp.get("workContent"));
+    const staffCode = normalizeSearchCode(sp.get("staffCode"));
 
     // 得意先名検索時は一致コードを先に取得（LEFT JOIN 的に使う）
     let nameMatchedCodes: string[] | null = null;
