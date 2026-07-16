@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./types";
+import { applyAuthCookies } from "./cookie-options";
 
 /** サーバー用。anon + Cookie セッション。service_role は使わない。 */
 export async function createClient() {
@@ -16,7 +17,7 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) => {
+            applyAuthCookies(cookiesToSet, (name, value, options) => {
               cookieStore.set(name, value, options);
             });
           } catch {

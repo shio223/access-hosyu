@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { applyAuthCookies } from "@/lib/supabase/cookie-options";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -21,7 +22,6 @@ export async function updateSession(request: NextRequest) {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    // 未設定時は開発しやすいよう通過（本番では必ず設定）
     return supabaseResponse;
   }
 
@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
           request.cookies.set(name, value);
         });
         supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
+        applyAuthCookies(cookiesToSet, (name, value, options) => {
           supabaseResponse.cookies.set(name, value, options);
         });
       },
@@ -48,15 +48,18 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (!user && !isPublicPath(pathname) && !pathname.startsWith("/_next")) {
+  // API は各 route で認証する（HTML ログインへリダイレクトしない）
+  if (
+    !user &&
+    !isPublicPath(pathname) &&
+    !pathname.startsWith("/_next") &&
+    !pathname.startsWith("/api/")
+  ) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(redirectUrl);
   }
-
-  // /login はセッション有無に関わらず表示（犬なでなで画面）。
-  // 認証済みでもメニューへ自動スキップしない。
 
   return supabaseResponse;
 }

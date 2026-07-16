@@ -6,6 +6,7 @@ import {
   clientKeyFromRequest,
   recordAuthAttempt,
 } from "@/lib/auth/rate-limit";
+import { applyAuthCookies } from "@/lib/supabase/cookie-options";
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // クライアントが誤って秘密を送ってきても無視（ボディは見ない／ログしない）
   try {
     await request.json().catch(() => null);
   } catch {
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          applyAuthCookies(cookiesToSet, (name, value, options) => {
             response.cookies.set(name, value, options);
           });
         },

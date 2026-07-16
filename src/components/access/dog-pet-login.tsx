@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { clearSessionGate, markLoginPending } from "@/lib/auth/session-gate";
+import { useRouter, useSearchParams } from "next/navigation";
+import { clearSessionGate, setSessionGate } from "@/lib/auth/session-gate";
 
 const REQUIRED_PETS = 1;
 const MIN_SWIPE_DX = 48;
@@ -17,9 +17,10 @@ type Stroke = {
 /**
  * 犬を左→右へ1回撫でてログイン。
  * 認証本体は /api/auth/pet-login（サーバー側）。
- * マウント時に logout しない（入室と競合してクッキーが消えるため）。
+ * マウント時に logout しない（入室と競合するため）。
  */
 export function DogPetLogin() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
   const [bark, setBark] = useState(false);
@@ -73,10 +74,10 @@ export function DogPetLogin() {
         return;
       }
 
-      // フル遷移用ワンタイムフラグ。beforeunload で消さない方式。
-      markLoginPending();
-      // Soft nav だと Cookie 反映前に判定されることがあるためフル遷移する
-      window.location.assign(next);
+      setSessionGate();
+      // Soft navigation（フル遷移だと middleware / SessionGate とぶつかりやすい）
+      router.replace(next);
+      router.refresh();
     } catch {
       setBark(false);
       setError("入れませんでした。もう一度撫でてください");
@@ -85,7 +86,7 @@ export function DogPetLogin() {
       finishingRef.current = false;
       setLoading(false);
     }
-  }, [next, resetPets]);
+  }, [next, resetPets, router]);
 
   const registerPet = useCallback(() => {
     if (finishingRef.current || loading) return;
