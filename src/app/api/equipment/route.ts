@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import type { EquipmentDetail, MaintenanceRecord } from "@/lib/db/types";
 import {
   normalizeSearchCode,
@@ -7,6 +7,11 @@ import {
 } from "@/lib/search-normalize";
 
 export const runtime = "nodejs";
+
+function formatWorkDate(value: string | null | undefined): string {
+  if (!value) return "";
+  return String(value).slice(0, 10).replace(/-/g, "/");
+}
 
 const EMPTY_DETAIL = (partial: Partial<EquipmentDetail>): EquipmentDetail => ({
   customerCode: "",
@@ -38,21 +43,14 @@ const EMPTY_DETAIL = (partial: Partial<EquipmentDetail>): EquipmentDetail => ({
   ...partial,
 });
 
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { supabase, user };
-}
-
 /**
  * 設備照会API（設備マスタ未移行のため、実績の得意先コード＋設備番号で照会）
  * 得意先名は customers を LEFT JOIN 相当で付与。
+ * 履歴は maintenance_records の9列を紐付けて返す。
  */
 export async function GET(request: NextRequest) {
   try {
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireAuth();
     if (!user) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
@@ -119,7 +117,9 @@ export async function GET(request: NextRequest) {
       let query = supabase
         .from("maintenance_records")
         .select("customer_code, equipment_no")
-        .limit(2000);
+        .order("customer_code")
+        .order("equipment_no")
+        .limit(5000);
 
       if (customerCode) query = query.eq("customer_code", customerCode);
       if (equipmentNo) query = query.eq("equipment_no", equipmentNo);
@@ -134,7 +134,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      const keySet = new Map<string, { customerCode: string; equipmentNo: string }>();
+      const keySet = new Map<
+        string,
+        { customerCode: string; equipmentNo: string }
+      >();
       for (const r of data ?? []) {
         const key = `${r.customer_code}\t${r.equipment_no}`;
         if (!keySet.has(key)) {
@@ -203,10 +206,11 @@ export async function GET(request: NextRequest) {
       .eq("customer_code", customerCode)
       .maybeSingle();
 
+    // 得意先コード＋設備番号で実績9列を紐付け
     const { data: histRows, error: histErr } = await supabase
       .from("maintenance_records")
       .select(
-        "work_date, work_code, work_content, operating_hours, customer_contact, staff_code, inputter_code"
+        "customer_code, equipment_no, work_date, work_code, work_content, operating_hours, staff_code, customer_contact, inputter_code"
       )
       .eq("customer_code", customerCode)
       .eq("equipment_no", equipmentNo)
@@ -234,7 +238,7 @@ export async function GET(request: NextRequest) {
     });
 
     const history: MaintenanceRecord[] = (histRows ?? []).map((r) => ({
-      workDate: r.work_date ?? "",
+      workDate: formatWorkDate(r.work_date),
       workCode: r.work_code ?? "",
       workType: "",
       workContent: r.work_content ?? "",
@@ -249,13 +253,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ detail, history });
   } catch (error) {
+    console.error("[equipment]", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "設備データの取得に失敗しました",
-      },
+      { error: "設備照会に失敗しました" },
       { status: 500 }
     );
   }

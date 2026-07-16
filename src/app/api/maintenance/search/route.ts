@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireAuth } from "@/lib/auth/require-auth";
 import {
   normalizeSearchCode,
   normalizeSearchText,
@@ -29,10 +29,7 @@ type SearchRow = {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await requireAuth();
     if (!user) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
@@ -55,7 +52,6 @@ export async function GET(request: NextRequest) {
     const workContent = normalizeSearchText(sp.get("workContent"));
     const staffCode = normalizeSearchCode(sp.get("staffCode"));
 
-    // 得意先名検索時は一致コードを先に取得（LEFT JOIN 的に使う）
     let nameMatchedCodes: string[] | null = null;
     if (customerName) {
       const { data: nameRows, error: nameErr } = await supabase
@@ -118,6 +114,9 @@ export async function GET(request: NextRequest) {
 
     const items: SearchRow[] = records.map((r) => ({
       ...r,
+      work_date: r.work_date
+        ? String(r.work_date).slice(0, 10).replace(/-/g, "/")
+        : null,
       customer_name: nameMap.get(r.customer_code) ?? null,
     }));
 

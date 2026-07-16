@@ -477,7 +477,11 @@ export function EquipmentMaintenanceInquiry() {
         const data = await res.json();
 
         if (!res.ok) {
-          setStatusMessage(data.error ?? "検索に失敗しました");
+          setStatusMessage(
+            res.status === 401
+              ? "認証が切れました。もう一度ログインしてください"
+              : (data.error ?? "検索に失敗しました")
+          );
           setResults([]);
           setCurrentIndex(-1);
           setDetail(EMPTY_DETAIL);
