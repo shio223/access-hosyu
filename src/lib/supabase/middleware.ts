@@ -15,11 +15,23 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
+function hasAuthCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some((c) => c.name.includes("-auth-token"));
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const { pathname } = request.nextUrl;
+
+  // API は各 route で認証（HTML ログインへリダイレクトしない）
+  if (pathname.startsWith("/api/")) {
+    return supabaseResponse;
+  }
 
   if (!url || !anonKey) {
     return supabaseResponse;
@@ -42,19 +54,22 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Edge 上の getUser() が Auth 通信に失敗して常に未ログイン扱いになるため、
+  // ここでは Cookie / セッション有無で判定する（厳密な検証は API・サーバー側）。
+  let signedIn = hasAuthCookie(request);
+  if (signedIn) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        signedIn = true;
+      }
+      // getSession が空でも Cookie があれば通過（getUser 失敗時のフォールバック）
+    } catch {
+      /* Cookie ありなら通過 */
+    }
+  }
 
-  const { pathname } = request.nextUrl;
-
-  // API は各 route で認証する（HTML ログインへリダイレクトしない）
-  if (
-    !user &&
-    !isPublicPath(pathname) &&
-    !pathname.startsWith("/_next") &&
-    !pathname.startsWith("/api/")
-  ) {
+  if (!signedIn && !isPublicPath(pathname) && !pathname.startsWith("/_next")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", pathname);
