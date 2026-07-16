@@ -135,17 +135,17 @@ export function DogPetLogin() {
     <div className="min-h-screen bg-[#C0C0C0] flex items-center justify-center p-4">
       <div
         className="border-2 border-[#404040] bg-[#D4D0C8] shadow-lg p-4"
-        style={{ width: 360 }}
+        style={{ width: 400 }}
       >
         <div className="bg-[#0000CC] text-white text-center font-bold mb-4 -mx-4 -mt-4 px-2 py-2 text-sm">
           保守管理システム　ログイン
         </div>
 
         <div
-          className="relative mx-auto select-none touch-none cursor-grab active:cursor-grabbing bg-[#E8E4DC] border border-[#808080]"
+          className="relative mx-auto select-none touch-none cursor-grab active:cursor-grabbing bg-[#E8E4DC] border border-[#808080] overflow-hidden"
           style={{
-            width: 260,
-            height: 220,
+            width: 320,
+            height: 300,
             boxShadow: "inset 1px 1px 2px #808080",
             touchAction: "none",
           }}
@@ -159,10 +159,10 @@ export function DogPetLogin() {
             src="/login-dog.png"
             alt=""
             draggable={false}
-            className={`mx-auto mt-2 pointer-events-none transition-transform object-contain ${
+            className={`mx-auto pointer-events-none transition-transform object-cover ${
               bark ? "scale-110" : ""
             }`}
-            style={{ width: 220, height: 180 }}
+            style={{ width: 320, height: 300, objectPosition: "center 20%" }}
           />
           {bark && (
             <div
