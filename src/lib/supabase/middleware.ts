@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/api/auth/pet-login",
   "/api/auth/logout",
+  "/api/auth/session-check",
 ];
 
 function isPublicPath(pathname: string): boolean {

@@ -51,7 +51,7 @@ const EMPTY_DETAIL = (partial: Partial<EquipmentDetail>): EquipmentDetail => ({
 export async function GET(request: NextRequest) {
   try {
     const { supabase, user } = await requireAuth();
-    if (!user) {
+    if (!user || !supabase) {
       return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
     }
 
