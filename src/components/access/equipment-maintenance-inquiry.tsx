@@ -130,6 +130,7 @@ function CodeNameRow({
   labelVariant = "yellow",
   labelWidth = 88,
   codeWidth = 44,
+  nameWidth,
 }: {
   label: string;
   code: string;
@@ -137,6 +138,8 @@ function CodeNameRow({
   labelVariant?: "yellow" | "green";
   labelWidth?: number;
   codeWidth?: number;
+  /** 省略時は残り幅を埋める。指定時は Access 同様の短い固定幅 */
+  nameWidth?: number;
 }) {
   return (
     <div className="flex items-stretch" style={{ gap: 1, marginBottom: 1 }}>
@@ -146,7 +149,10 @@ function CodeNameRow({
       <FieldValue style={{ width: codeWidth, justifyContent: "center" }}>
         {code || "\u00A0"}
       </FieldValue>
-      <FieldValue className="flex-1" style={{ flex: 1 }}>
+      <FieldValue
+        className={nameWidth == null ? "flex-1" : undefined}
+        style={nameWidth != null ? { width: nameWidth } : { flex: 1 }}
+      >
         {name || "\u00A0"}
       </FieldValue>
     </div>
@@ -158,22 +164,40 @@ function SimpleRow({
   value,
   labelVariant = "yellow",
   labelWidth = 72,
+  valueWidth,
 }: {
   label: string;
   value: string;
   labelVariant?: "yellow" | "green";
   labelWidth?: number;
+  /** Access 添付どおり、値枠は項目ごとに短い固定幅 */
+  valueWidth?: number;
 }) {
   return (
     <div className="flex items-stretch" style={{ gap: 1, marginBottom: 1 }}>
       <FieldLabel variant={labelVariant} style={{ width: labelWidth }}>
         {label}
       </FieldLabel>
-      <FieldValue className="flex-1" style={{ flex: 1 }}>
+      <FieldValue
+        className={valueWidth == null ? "flex-1" : undefined}
+        style={valueWidth != null ? { width: valueWidth } : { flex: 1 }}
+      >
         {value || "\u00A0"}
       </FieldValue>
     </div>
   );
+}
+
+/** 販売店「コード　名称」を Access の2枠表示用に分割 */
+function splitDealer(raw: string): { code: string; name: string } {
+  const s = raw.trim();
+  if (!s) return { code: "", name: "" };
+  const parts = s.split(/[　\s]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return { code: parts[0], name: parts.slice(1).join(" ") };
+  }
+  if (/^\d+$/.test(s)) return { code: s, name: "" };
+  return { code: "", name: s };
 }
 
 type LookupCustomer = { customerCode: string; customerName: string };
@@ -392,6 +416,9 @@ export function EquipmentMaintenanceInquiry() {
   const hasRecord = currentIndex >= 0 && results.length > 0;
   const d = hasRecord ? detail : EMPTY_DETAIL;
   const revisionDateDisplay = formatTodayDate();
+  const dealer1 = splitDealer(d.dealer1);
+  const dealer2 = splitDealer(d.dealer2);
+  const dealer3 = splitDealer(d.dealer3);
 
   const loadHistory = useCallback(async (customerCode: string, equipmentNo: string) => {
     const res = await fetch(
@@ -697,33 +724,75 @@ export function EquipmentMaintenanceInquiry() {
                   value={d.modelType}
                   labelVariant="yellow"
                   labelWidth={88}
+                  valueWidth={200}
                 />
                 <SimpleRow
                   label="管理番号"
                   value={d.managementNo}
                   labelVariant="yellow"
                   labelWidth={88}
+                  valueWidth={120}
                 />
               </div>
 
-              {/* 中列 */}
-              <div style={{ width: 200, flexShrink: 0 }}>
-                <SimpleRow label="郵便番号" value={d.postalCode} />
-                <SimpleRow label="電話番号" value={d.phone} />
-                <SimpleRow label="納 入 日" value={d.deliveryDate} />
-                <SimpleRow label="点検周期" value={d.inspectionCycle} />
-                <SimpleRow label="次回点検日" value={d.nextInspectionDate} />
-                <SimpleRow label="点検案内" value={d.inspectionNotice} />
+              {/* 中列（Access: 値枠は短め・点検周期は特に短い） */}
+              <div style={{ width: 180, flexShrink: 0 }}>
+                <SimpleRow label="郵便番号" value={d.postalCode} valueWidth={72} />
+                <SimpleRow label="電話番号" value={d.phone} valueWidth={100} />
+                <SimpleRow label="納 入 日" value={d.deliveryDate} valueWidth={80} />
+                <SimpleRow label="点検周期" value={d.inspectionCycle} valueWidth={48} />
+                <SimpleRow
+                  label="次回点検日"
+                  value={d.nextInspectionDate}
+                  valueWidth={108}
+                />
+                <SimpleRow label="点検案内" value={d.inspectionNotice} valueWidth={72} />
               </div>
 
-              {/* 右列 */}
-              <div style={{ width: 400, flexShrink: 0 }}>
-                <SimpleRow label="住 所 1" value={d.address1} labelWidth={72} />
-                <SimpleRow label="住 所 2" value={d.address2} labelWidth={72} />
-                <SimpleRow label="1次販売店" value={d.dealer1} labelWidth={72} />
-                <SimpleRow label="2次販売店" value={d.dealer2} labelWidth={72} />
-                <SimpleRow label="3次販売店" value={d.dealer3} labelWidth={72} />
-                <SimpleRow label="使用オイル" value={d.oilUsed} labelWidth={72} />
+              {/* 右列（住所・オイルは長枠、販売店はコード＋名称） */}
+              <div style={{ width: 420, flexShrink: 0 }}>
+                <SimpleRow
+                  label="住 所 1"
+                  value={d.address1}
+                  labelWidth={72}
+                  valueWidth={320}
+                />
+                <SimpleRow
+                  label="住 所 2"
+                  value={d.address2}
+                  labelWidth={72}
+                  valueWidth={320}
+                />
+                <CodeNameRow
+                  label="1次販売店"
+                  code={dealer1.code}
+                  name={dealer1.name}
+                  labelWidth={72}
+                  codeWidth={48}
+                  nameWidth={dealer1.name.length > 12 ? 260 : 120}
+                />
+                <CodeNameRow
+                  label="2次販売店"
+                  code={dealer2.code}
+                  name={dealer2.name}
+                  labelWidth={72}
+                  codeWidth={48}
+                  nameWidth={120}
+                />
+                <CodeNameRow
+                  label="3次販売店"
+                  code={dealer3.code}
+                  name={dealer3.name}
+                  labelWidth={72}
+                  codeWidth={52}
+                  nameWidth={56}
+                />
+                <SimpleRow
+                  label="使用オイル"
+                  value={d.oilUsed}
+                  labelWidth={72}
+                  valueWidth={320}
+                />
               </div>
             </div>
 
