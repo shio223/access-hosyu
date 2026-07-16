@@ -76,6 +76,22 @@ npm run dev
 
 未ログイン時は `/login` へリダイレクトされます。
 
+## Vercel（本番）環境変数
+
+[https://access-hosyu.vercel.app](https://access-hosyu.vercel.app) では、ローカルの `.env.local` は使われません。  
+**Vercel Dashboard → Project → Settings → Environment Variables** に、次を **Production**（必要なら Preview も）へ設定してください。
+
+| 変数名 | 内容 |
+|--------|------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role secret（`NEXT_PUBLIC_` 禁止） |
+| `AUTH_LOGIN_EMAIL` | Auth ユーザーのメール（サーバー専用） |
+
+設定後は **Redeploy** が必要です（環境変数はデプロイ時に読み込まれます）。
+
+不足していると `/api/auth/pet-login` が `ログイン設定が完了していません` を返し、本番だけ入室できません。
+
 ## 重複防止
 
 - `maintenance_records.source_hash` のみ UNIQUE

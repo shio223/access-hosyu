@@ -45,8 +45,18 @@ export async function POST(request: NextRequest) {
 
   if (!email || !url || !anonKey || !serviceKey) {
     recordAuthAttempt(key, false);
+    const missing = [
+      !email && "AUTH_LOGIN_EMAIL",
+      !url && "NEXT_PUBLIC_SUPABASE_URL",
+      !anonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      !serviceKey && "SUPABASE_SERVICE_ROLE_KEY",
+    ].filter(Boolean);
+    console.error("[pet-login] missing env:", missing.join(", "));
     return NextResponse.json(
-      { error: "ログイン設定が完了していません" },
+      {
+        error: "ログイン設定が完了していません",
+        missing,
+      },
       { status: 500 }
     );
   }
@@ -72,6 +82,7 @@ export async function POST(request: NextRequest) {
     const tokenHash = linkData?.properties?.hashed_token;
     if (linkError || !tokenHash) {
       recordAuthAttempt(key, false);
+      console.error("[pet-login] generateLink failed", linkError?.message);
       return NextResponse.json(
         { error: "ログインに失敗しました" },
         { status: 401 }
@@ -100,6 +111,7 @@ export async function POST(request: NextRequest) {
 
     if (otpError) {
       recordAuthAttempt(key, false);
+      console.error("[pet-login] verifyOtp failed", otpError.message);
       return NextResponse.json(
         { error: "ログインに失敗しました" },
         { status: 401 }
@@ -108,8 +120,12 @@ export async function POST(request: NextRequest) {
 
     recordAuthAttempt(key, true);
     return response;
-  } catch {
+  } catch (err) {
     recordAuthAttempt(key, false);
+    console.error(
+      "[pet-login] unexpected",
+      err instanceof Error ? err.message : "unknown"
+    );
     return NextResponse.json(
       { error: "ログインに失敗しました" },
       { status: 401 }

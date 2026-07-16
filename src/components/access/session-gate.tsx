@@ -4,29 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   clearSessionGate,
+  consumeLoginPending,
+  getNavigationType,
   hasSessionGate,
+  setSessionGate,
 } from "@/lib/auth/session-gate";
 import { routes } from "@/lib/routes";
 
 /**
- * リロード・アドレスバー変更・タブ閉じ時はゲート消滅 → 再入室が必要。
- * アプリ内 Link / router 遷移では beforeunload が起きないのでログイン維持。
- * （pagehide はタブ切替でも発火するため使わない）
+ * リロード・アドレスバー直入力はログアウト。
+ * ログイン直後のフル遷移は pending フラグで許可。
+ * アプリ内 Link / router 遷移ではルートレイアウトが残るのでゲート維持。
  */
 export function SessionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLogin = pathname === routes.login;
   const [ready, setReady] = useState(isLogin);
+  const bootstrappedRef = useRef(false);
   const loggingOutRef = useRef(false);
-
-  useEffect(() => {
-    const onBeforeUnload = () => {
-      clearSessionGate();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +41,10 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         loggingOutRef.current = false;
         return;
       }
-      router.replace(routes.login);
-      router.refresh();
+      if (pathname !== routes.login) {
+        router.replace(routes.login);
+        router.refresh();
+      }
       loggingOutRef.current = false;
     };
 
@@ -56,6 +54,28 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
       return () => {
         cancelled = true;
       };
+    }
+
+    // 初回マウント（フルロード）時だけ reload / 直URL を判定
+    if (!bootstrappedRef.current) {
+      bootstrappedRef.current = true;
+      const navType = getNavigationType();
+      const pending = consumeLoginPending();
+
+      if (pending) {
+        setSessionGate();
+        setReady(true);
+        return () => {
+          cancelled = true;
+        };
+      }
+
+      if (navType === "reload" || navType === "navigate") {
+        void forceLogout();
+        return () => {
+          cancelled = true;
+        };
+      }
     }
 
     if (hasSessionGate()) {

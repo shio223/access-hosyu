@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { clearSessionGate, setSessionGate } from "@/lib/auth/session-gate";
+import { useCallback, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { clearSessionGate, markLoginPending } from "@/lib/auth/session-gate";
 
 const REQUIRED_PETS = 1;
 const MIN_SWIPE_DX = 48;
@@ -17,9 +17,9 @@ type Stroke = {
 /**
  * 犬を左→右へ1回撫でてログイン。
  * 認証本体は /api/auth/pet-login（サーバー側）。
+ * マウント時に logout しない（入室と競合してクッキーが消えるため）。
  */
 export function DogPetLogin() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
   const [bark, setBark] = useState(false);
@@ -28,26 +28,6 @@ export function DogPetLogin() {
   const strokeRef = useRef<Stroke | null>(null);
   const petsRef = useRef(0);
   const finishingRef = useRef(false);
-  const logoutAbortRef = useRef<AbortController | null>(null);
-
-  // ログイン画面を開いたら既存セッションを切る（犬をスキップして入れないようにする）
-  // Strict Mode の二重実行や、入室直後に遅延した logout がクッキーを消すのを abort で防ぐ
-  useEffect(() => {
-    clearSessionGate();
-    const ac = new AbortController();
-    logoutAbortRef.current = ac;
-    void fetch("/api/auth/logout", { method: "POST", signal: ac.signal })
-      .then(() => {
-        if (!ac.signal.aborted) router.refresh();
-      })
-      .catch(() => {
-        /* aborted or network */
-      });
-    return () => {
-      ac.abort();
-      if (logoutAbortRef.current === ac) logoutAbortRef.current = null;
-    };
-  }, [router]);
 
   const resetPets = useCallback(() => {
     petsRef.current = 0;
@@ -61,24 +41,30 @@ export function DogPetLogin() {
     setError("");
     setBark(true);
 
-    // 入室処理中にマウント時 logout が後から走るのを止める
-    logoutAbortRef.current?.abort();
-    logoutAbortRef.current = null;
-
     try {
-      await new Promise((r) => setTimeout(r, 400));
       const res = await fetch("/api/auth/pet-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gesture: "pet-complete" }),
+        credentials: "same-origin",
       });
+
       if (!res.ok) {
         const status = res.status;
+        let detail = "";
+        try {
+          const body = (await res.json()) as { error?: string };
+          detail = body.error ?? "";
+        } catch {
+          /* ignore */
+        }
         setBark(false);
         setError(
           status === 429
             ? "しばらくしてからもう一度お試しください"
-            : "入れませんでした。もう一度撫でてください"
+            : detail === "ログイン設定が完了していません"
+              ? "本番のログイン設定（Vercel環境変数）が未完了です"
+              : "入れませんでした。もう一度撫でてください"
         );
         clearSessionGate();
         resetPets();
@@ -86,9 +72,11 @@ export function DogPetLogin() {
         setLoading(false);
         return;
       }
-      setSessionGate();
-      router.replace(next);
-      router.refresh();
+
+      // フル遷移用ワンタイムフラグ。beforeunload で消さない方式。
+      markLoginPending();
+      // Soft nav だと Cookie 反映前に判定されることがあるためフル遷移する
+      window.location.assign(next);
     } catch {
       setBark(false);
       setError("入れませんでした。もう一度撫でてください");
@@ -97,7 +85,7 @@ export function DogPetLogin() {
       finishingRef.current = false;
       setLoading(false);
     }
-  }, [next, resetPets, router]);
+  }, [next, resetPets]);
 
   const registerPet = useCallback(() => {
     if (finishingRef.current || loading) return;
