@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { clearSessionGate, setSessionGate } from "@/lib/auth/session-gate";
+import { SUPABASE_UNREACHABLE_CODE } from "@/lib/supabase/connection-error";
 
 const REQUIRED_PETS = 1;
 const MIN_SWIPE_DX = 48;
@@ -53,22 +54,52 @@ export function DogPetLogin() {
       if (!res.ok) {
         const status = res.status;
         let detail = "";
+        let code = "";
+        let reportedHttpStatus: number | null = null;
         try {
-          const body = (await res.json()) as { error?: string };
+          const body = (await res.json()) as {
+            error?: string;
+            code?: string;
+            httpStatus?: number;
+          };
           detail = body.error ?? "";
+          code = body.code ?? "";
+          reportedHttpStatus =
+            typeof body.httpStatus === "number" ? body.httpStatus : null;
         } catch {
           /* ignore */
         }
+
+        console.error("[dog-pet-login] auth failed", {
+          httpStatus: status,
+          code: code || null,
+          reportedHttpStatus,
+          error: detail || null,
+        });
+
         setBark(false);
-        setError(
-          status === 429
-            ? "しばらくしてからもう一度お試しください"
-            : detail === "ログイン設定が完了していません"
-              ? "本番のログイン設定（Vercel環境変数）が未完了です"
-              : detail.includes("Supabaseに接続できません")
-                ? detail
-                : detail || "入れませんでした。もう一度撫でてください"
-        );
+        if (status === 429 || code === "RATE_LIMITED") {
+          setError("しばらくしてからもう一度お試しください");
+        } else if (code === "MISSING_ENV" || detail === "ログイン設定が完了していません") {
+          setError(
+            process.env.NODE_ENV === "development"
+              ? "ログイン設定（環境変数）が未完了です"
+              : "現在サービスに接続できません。しばらくしてから再度お試しください。"
+          );
+        } else if (
+          status === 503 ||
+          code === SUPABASE_UNREACHABLE_CODE
+        ) {
+          // サーバーが環境に応じた文言を返す（開発: 一時停止の可能性 / 本番: 汎用）
+          setError(
+            detail ||
+              (process.env.NODE_ENV === "development"
+                ? "Supabaseプロジェクトが一時停止している可能性があります"
+                : "現在サービスに接続できません。しばらくしてから再度お試しください。")
+          );
+        } else {
+          setError(detail || "入れませんでした。もう一度撫でてください");
+        }
         clearSessionGate();
         resetPets();
         finishingRef.current = false;
@@ -80,9 +111,18 @@ export function DogPetLogin() {
       // Soft navigation（フル遷移だと middleware / SessionGate とぶつかりやすい）
       router.replace(next);
       router.refresh();
-    } catch {
+    } catch (err) {
+      console.error("[dog-pet-login] fetch failed", {
+        httpStatus: null,
+        code: "CLIENT_FETCH_FAILED",
+        error: err instanceof Error ? err.message : String(err),
+      });
       setBark(false);
-      setError("入れませんでした。もう一度撫でてください");
+      setError(
+        process.env.NODE_ENV === "development"
+          ? "Supabaseプロジェクトが一時停止している可能性があります"
+          : "現在サービスに接続できません。しばらくしてから再度お試しください。"
+      );
       clearSessionGate();
       resetPets();
       finishingRef.current = false;
