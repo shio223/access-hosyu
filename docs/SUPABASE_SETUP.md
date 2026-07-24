@@ -42,6 +42,14 @@ Dashboard の **SQL Editor** で次を実行します。
 - 既存テーブルは削除・変更しません
 - RLS は **authenticated の SELECT のみ**許可（anon 不可）
 
+設備マスタを使う場合は続けて:
+
+`supabase/migrations/002_equipment_master.sql`
+
+- 新規テーブル `equipment_master` のみ作成
+- 主キー / UPSERT キーは `(customer_code, equipment_number)`
+  （元Excelでは設備番号単体の重複が多いため、`equipment_number` 単独 UNIQUE にはしません）
+
 同名テーブルが既にある場合は実行前に確認してください。
 
 ### 4. Auth ユーザーを作成
@@ -67,6 +75,18 @@ npm run import:supabase -- --execute
 ```
 
 `service_role` で 800件バッチ upsert（`ON CONFLICT source_hash`）。
+
+### 7. 設備マスタ投入
+
+```bash
+# 書き込みなし
+npm run import:equipment -- --dry-run
+
+# 本番投入（SQL 002 実行後）
+npm run import:equipment -- --execute
+# または
+npm run import:equipment -- --file "/Volumes/USB DISK/T-設備マスタ.xlsx" --execute
+```
 
 ## アプリ起動
 

@@ -26,3 +26,12 @@ npm run import:supabase -- --execute
 ```
 
 `import-data/` 内の Excel は Git 管理対象外です。`data/hosyu.db`（SQLite）は当面削除しません。
+
+### 設備マスタ
+
+```bash
+npm run import:equipment -- --dry-run
+npm run import:equipment -- --execute
+```
+
+事前に `supabase/migrations/002_equipment_master.sql` を SQL Editor で実行してください。

@@ -8,9 +8,14 @@ import {
   computeSourceHash,
   type MaintenanceSourceFields,
 } from "./source-hash";
-import type { CustomerInsert, MaintenanceRecordInsert } from "@/lib/supabase/types";
+import type {
+  CustomerInsert,
+  EquipmentMasterInsert,
+  MaintenanceRecordInsert,
+} from "@/lib/supabase/types";
 
 const MAINT_SHEET = "T_保守実績ファイル";
+const EQUIPMENT_SHEET = "T_設備マスタ";
 
 const MAINT_HEADERS = [
   "得意先コード",
@@ -260,6 +265,206 @@ export function readCustomerExcel(filePath: string): CustomerImportRow[] {
   }
 
   return rows;
+}
+
+const EQUIPMENT_HEADERS = [
+  "得意先コード",
+  "設備番号",
+  "設備名",
+  "機種コード",
+  "メーカーコード",
+  "型式",
+  "管理番号",
+  "納入日",
+  "点検周期",
+  "次回点検日",
+  "点検案内",
+  "1次販売店コード",
+  "2次販売店コード",
+  "3次販売店コード",
+  "使用オイル",
+  "汎用コード1",
+  "汎用コード2",
+  "汎用コード3",
+  "汎用コード4",
+  "備考",
+  "運転状況コード",
+  "修正日",
+] as const;
+
+export type EquipmentMasterImportRow = EquipmentMasterInsert;
+
+function readEquipmentCell(
+  sheet: XLSX.WorkSheet,
+  r: number,
+  c: number
+): unknown {
+  const addr = XLSX.utils.encode_cell({ r, c });
+  const cell = sheet[addr];
+  if (!cell) return null;
+  if (cell.t === "s" || cell.t === "str") return String(cell.v);
+  if (cell.t === "d") return cell.v;
+  if (cell.t === "n") {
+    // コード列は表示文字列があれば優先（先頭ゼロ維持）
+    if (cell.w != null && cell.w !== "") return cell.w;
+    return cell.v;
+  }
+  if (cell.w != null && cell.w !== "") return cell.w;
+  return cell.v ?? null;
+}
+
+/** 点検周期など: 数値は文字列化、空は null（先頭ゼロは asCodeText 側） */
+function asNullableText(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return String(Math.trunc(v) === v ? Math.trunc(v) : v);
+  }
+  const s = asCodeText(v);
+  return s === "" ? null : s;
+}
+
+export function readEquipmentMasterExcel(
+  filePath: string
+): EquipmentMasterImportRow[] {
+  const abs = path.resolve(filePath);
+  if (!fs.existsSync(abs)) {
+    throw new Error(`ファイルがありません: ${abs}`);
+  }
+  const buf = fs.readFileSync(abs);
+  const wb = XLSX.read(buf, {
+    type: "buffer",
+    cellDates: true,
+    raw: true,
+    codepage: 932,
+  });
+  const sheetName = wb.SheetNames.includes(EQUIPMENT_SHEET)
+    ? EQUIPMENT_SHEET
+    : wb.SheetNames[0];
+  if (!sheetName) throw new Error("設備マスタシートがありません");
+  const sheet = wb.Sheets[sheetName];
+  const ref = sheet["!ref"];
+  if (!ref) throw new Error("シートが空です");
+
+  const range = XLSX.utils.decode_range(ref);
+  const headerRow: string[] = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({ r: range.s.r, c });
+    const cell = sheet[addr];
+    headerRow.push(
+      cell
+        ? String(cell.v ?? "")
+            .trim()
+            .normalize("NFKC")
+        : ""
+    );
+  }
+
+  const idx: Record<(typeof EQUIPMENT_HEADERS)[number], number> = {} as never;
+  for (const h of EQUIPMENT_HEADERS) {
+    const target = h.normalize("NFKC");
+    let i = headerRow.indexOf(target);
+    if (i < 0) {
+      i = headerRow.findIndex(
+        (x) => x.replace(/\s/g, "") === target.replace(/\s/g, "")
+      );
+    }
+    if (i < 0) throw new Error(`列がありません: ${h}`);
+    idx[h] = i;
+  }
+
+  const rows: EquipmentMasterImportRow[] = [];
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    const get = (h: (typeof EQUIPMENT_HEADERS)[number]) =>
+      readEquipmentCell(sheet, r, idx[h]);
+
+    const customerCode = asCodeText(get("得意先コード"));
+    const equipmentNumber = asCodeText(get("設備番号"));
+    if (!customerCode && !equipmentNumber) continue;
+    if (!customerCode || !equipmentNumber) {
+      throw new Error(
+        `設備マスタ ${r + 1} 行目: 得意先コードと設備番号は必須です（code=${customerCode}, no=${equipmentNumber}）`
+      );
+    }
+
+    rows.push({
+      customer_code: customerCode,
+      equipment_number: equipmentNumber,
+      equipment_name: asNullableText(get("設備名")),
+      machine_code: asNullableText(get("機種コード")),
+      maker_code: asNullableText(get("メーカーコード")),
+      model: asNullableText(get("型式")),
+      management_number: asNullableText(get("管理番号")),
+      installation_date: asWorkDate(get("納入日")),
+      inspection_cycle: asNullableText(get("点検周期")),
+      next_inspection_date: asWorkDate(get("次回点検日")),
+      inspection_notice: asNullableText(get("点検案内")),
+      dealer1_code: asNullableText(get("1次販売店コード")),
+      dealer2_code: asNullableText(get("2次販売店コード")),
+      dealer3_code: asNullableText(get("3次販売店コード")),
+      oil_type: asNullableText(get("使用オイル")),
+      generic_code1: asNullableText(get("汎用コード1")),
+      generic_code2: asNullableText(get("汎用コード2")),
+      generic_code3: asNullableText(get("汎用コード3")),
+      generic_code4: asNullableText(get("汎用コード4")),
+      remarks: asNullableText(get("備考")),
+      operation_status_code: asNullableText(get("運転状況コード")),
+      updated_at_source: asWorkDate(get("修正日")),
+    });
+  }
+
+  return rows;
+}
+
+export type EquipmentMasterValidationSummary = {
+  rowCount: number;
+  uniquePairCount: number;
+  duplicatePairCount: number;
+  /** 設備番号単体の重複行数（別得意先での再利用。単独 UNIQUE 不可の根拠） */
+  duplicateEquipmentNumberExtraRows: number;
+  uniqueEquipmentNumberCount: number;
+  leadingZeroEquipmentCount: number;
+  missingCustomerCodeCount: number;
+  missingEquipmentNumberCount: number;
+};
+
+export function validateEquipmentMasterData(
+  rows: EquipmentMasterImportRow[]
+): EquipmentMasterValidationSummary {
+  const pairSet = new Set<string>();
+  let duplicatePairCount = 0;
+  const equipmentCounts = new Map<string, number>();
+  let leadingZero = 0;
+  let missingCustomer = 0;
+  let missingEquipment = 0;
+
+  for (const row of rows) {
+    if (!row.customer_code) missingCustomer += 1;
+    if (!row.equipment_number) missingEquipment += 1;
+    const pair = `${row.customer_code}\t${row.equipment_number}`;
+    if (pairSet.has(pair)) duplicatePairCount += 1;
+    else pairSet.add(pair);
+    equipmentCounts.set(
+      row.equipment_number,
+      (equipmentCounts.get(row.equipment_number) ?? 0) + 1
+    );
+    if (row.equipment_number.startsWith("0")) leadingZero += 1;
+  }
+
+  let duplicateEquipmentNumberExtraRows = 0;
+  for (const n of equipmentCounts.values()) {
+    if (n > 1) duplicateEquipmentNumberExtraRows += n - 1;
+  }
+
+  return {
+    rowCount: rows.length,
+    uniquePairCount: pairSet.size,
+    duplicatePairCount,
+    duplicateEquipmentNumberExtraRows,
+    uniqueEquipmentNumberCount: equipmentCounts.size,
+    leadingZeroEquipmentCount: leadingZero,
+    missingCustomerCodeCount: missingCustomer,
+    missingEquipmentNumberCount: missingEquipment,
+  };
 }
 
 export type ValidationSummary = {

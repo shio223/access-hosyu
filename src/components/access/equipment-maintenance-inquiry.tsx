@@ -201,7 +201,11 @@ function splitDealer(raw: string): { code: string; name: string } {
 }
 
 type LookupCustomer = { customerCode: string; customerName: string };
-type LookupEquipment = { equipmentNo: string; equipmentName: string };
+type LookupEquipment = {
+  customerCode: string;
+  equipmentNo: string;
+  equipmentName: string;
+};
 
 /** 得意先コード検索行（コンボボックス付き） */
 function CustomerSearchRow({
@@ -296,7 +300,7 @@ function CustomerSearchRow({
   );
 }
 
-/** 設備番号検索行（コンボボックス付き） */
+/** 設備番号検索行（コンボボックス付き・部分一致・入力完了で自動検索） */
 function EquipmentSearchRow({
   customerCode,
   equipmentNo,
@@ -315,14 +319,16 @@ function EquipmentSearchRow({
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<LookupEquipment[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const skipBlurSearch = useRef(false);
 
   const loadOptions = useCallback(async () => {
-    if (!customerCode.trim()) return;
-    const params = new URLSearchParams({
-      lookup: "equipment",
-      customerCode,
-    });
-    if (equipmentNo) params.set("q", equipmentNo);
+    const params = new URLSearchParams({ lookup: "equipment" });
+    if (customerCode.trim()) params.set("customerCode", customerCode.trim());
+    if (equipmentNo.trim()) params.set("q", equipmentNo.trim());
+    if (!customerCode.trim() && !equipmentNo.trim()) {
+      setOptions([]);
+      return;
+    }
     const res = await fetch(`/api/equipment?${params}`);
     if (res.ok) {
       const data = await res.json();
@@ -354,7 +360,7 @@ function EquipmentSearchRow({
         <button
           type="button"
           onClick={handleDropdown}
-          disabled={!customerCode.trim()}
+          disabled={!customerCode.trim() && !equipmentNo.trim()}
           className="bg-[#C0C0C0] border border-[#808080] rounded-none shrink-0 print:hidden disabled:text-[#808080]"
           style={{ width: 18, height: 20, fontSize: 8, boxShadow: "inset 1px 1px 0 #fff, inset -1px -1px 0 #808080" }}
         >
@@ -364,7 +370,19 @@ function EquipmentSearchRow({
           type="text"
           value={equipmentNo}
           onChange={(e) => onEquipmentNoChange(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onSearch()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onSearch();
+            }
+          }}
+          onBlur={() => {
+            if (skipBlurSearch.current) {
+              skipBlurSearch.current = false;
+              return;
+            }
+            if (equipmentNo.trim()) onSearch();
+          }}
           className="bg-white border border-[#808080] rounded-none outline-none"
           style={{ ...inputStyle, width: 44, textAlign: "center" }}
         />
@@ -375,19 +393,23 @@ function EquipmentSearchRow({
       {open && options.length > 0 && (
         <div
           className="absolute top-full left-[89px] z-50 bg-white border border-[#808080] shadow-md overflow-auto print:hidden"
-          style={{ width: 280, maxHeight: 160, fontSize: 11 }}
+          style={{ width: 320, maxHeight: 160, fontSize: 11 }}
         >
           {options.map((item) => (
             <button
-              key={item.equipmentNo}
+              key={`${item.customerCode}-${item.equipmentNo}`}
               type="button"
               className="w-full text-left px-2 py-0.5 hover:bg-[#000080] hover:text-white border-0 bg-transparent cursor-pointer"
+              onMouseDown={() => {
+                skipBlurSearch.current = true;
+              }}
               onClick={() => {
                 onSelect(item);
                 setOpen(false);
               }}
             >
               {item.equipmentNo}　{item.equipmentName}
+              {item.customerCode ? `（${item.customerCode}）` : ""}
             </button>
           ))}
         </div>
@@ -426,6 +448,11 @@ export function EquipmentMaintenanceInquiry() {
     );
     if (res.ok) {
       const data = await res.json();
+      if (data.detail) {
+        setDetail(data.detail);
+        setSearchCustomerName(data.detail.customerName ?? "");
+        setSearchEquipmentName(data.detail.equipmentName ?? "");
+      }
       setHistory(data.history ?? []);
     } else {
       setHistory([]);
@@ -536,12 +563,16 @@ export function EquipmentMaintenanceInquiry() {
     const customerCode = params.get("customerCode");
     const equipmentNo = params.get("equipmentNo");
 
-    if (customerCode && equipmentNo) {
-      setSearchCustomerCode(normalizeSearchCode(customerCode));
-      setSearchEquipmentNo(normalizeSearchCode(equipmentNo));
+    if (customerCode || equipmentNo) {
+      if (customerCode) setSearchCustomerCode(normalizeSearchCode(customerCode));
+      if (equipmentNo) setSearchEquipmentNo(normalizeSearchCode(equipmentNo));
       performSearch({
-        customerCode: normalizeSearchCode(customerCode),
-        equipmentNo: normalizeSearchCode(equipmentNo),
+        customerCode: customerCode
+          ? normalizeSearchCode(customerCode)
+          : undefined,
+        equipmentNo: equipmentNo
+          ? normalizeSearchCode(equipmentNo)
+          : undefined,
       });
     }
   }, [performSearch]);
@@ -675,10 +706,18 @@ export function EquipmentMaintenanceInquiry() {
                       customerCode={searchCustomerCode}
                       equipmentNo={searchEquipmentNo}
                       equipmentName={searchEquipmentName || d.equipmentName}
-                      onEquipmentNoChange={setSearchEquipmentNo}
+                      onEquipmentNoChange={(no) => {
+                        setSearchEquipmentNo(no);
+                        setSearchEquipmentName("");
+                      }}
                       onSelect={(item) => {
+                        setSearchCustomerCode(item.customerCode);
                         setSearchEquipmentNo(item.equipmentNo);
                         setSearchEquipmentName(item.equipmentName);
+                        void performSearch({
+                          customerCode: item.customerCode,
+                          equipmentNo: item.equipmentNo,
+                        });
                       }}
                       onSearch={() => performSearch()}
                     />
@@ -689,7 +728,10 @@ export function EquipmentMaintenanceInquiry() {
                       <button
                         type="button"
                         onClick={() => performSearch()}
-                        disabled={loading || !searchCustomerCode.trim()}
+                        disabled={
+                          loading ||
+                          (!searchCustomerCode.trim() && !searchEquipmentNo.trim())
+                        }
                         className="bg-[#F0F0F0] border border-[#000080] rounded-none text-[#000080] disabled:text-[#808080] disabled:border-[#808080]"
                         style={{
                           fontSize: 12,

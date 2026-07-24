@@ -86,6 +86,58 @@ export type MaintenanceRecordInsert = {
   imported_at?: string;
 };
 
+export type EquipmentMasterRow = {
+  customer_code: string;
+  equipment_number: string;
+  equipment_name: string | null;
+  machine_code: string | null;
+  maker_code: string | null;
+  model: string | null;
+  management_number: string | null;
+  installation_date: string | null;
+  inspection_cycle: string | null;
+  next_inspection_date: string | null;
+  inspection_notice: string | null;
+  dealer1_code: string | null;
+  dealer2_code: string | null;
+  dealer3_code: string | null;
+  oil_type: string | null;
+  generic_code1: string | null;
+  generic_code2: string | null;
+  generic_code3: string | null;
+  generic_code4: string | null;
+  remarks: string | null;
+  operation_status_code: string | null;
+  updated_at_source: string | null;
+  imported_at: string;
+};
+
+export type EquipmentMasterInsert = {
+  customer_code: string;
+  equipment_number: string;
+  equipment_name?: string | null;
+  machine_code?: string | null;
+  maker_code?: string | null;
+  model?: string | null;
+  management_number?: string | null;
+  installation_date?: string | null;
+  inspection_cycle?: string | null;
+  next_inspection_date?: string | null;
+  inspection_notice?: string | null;
+  dealer1_code?: string | null;
+  dealer2_code?: string | null;
+  dealer3_code?: string | null;
+  oil_type?: string | null;
+  generic_code1?: string | null;
+  generic_code2?: string | null;
+  generic_code3?: string | null;
+  generic_code4?: string | null;
+  remarks?: string | null;
+  operation_status_code?: string | null;
+  updated_at_source?: string | null;
+  imported_at?: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -99,6 +151,12 @@ export type Database = {
         Row: MaintenanceRecordRow;
         Insert: MaintenanceRecordInsert;
         Update: Partial<MaintenanceRecordInsert>;
+        Relationships: [];
+      };
+      equipment_master: {
+        Row: EquipmentMasterRow;
+        Insert: EquipmentMasterInsert;
+        Update: Partial<EquipmentMasterInsert>;
         Relationships: [];
       };
     };
