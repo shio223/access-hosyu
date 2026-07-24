@@ -453,7 +453,17 @@ export function EquipmentMaintenanceInquiry() {
         setSearchCustomerName(data.detail.customerName ?? "");
         setSearchEquipmentName(data.detail.equipmentName ?? "");
       }
-      setHistory(data.history ?? []);
+      const rows: MaintenanceRecord[] = data.history ?? [];
+      // 作業日の古い順（日付順）で表示
+      rows.sort((a, b) => {
+        const da = a.workDate || "";
+        const db = b.workDate || "";
+        if (da === db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return da.localeCompare(db);
+      });
+      setHistory(rows);
     } else {
       setHistory([]);
     }
@@ -517,6 +527,7 @@ export function EquipmentMaintenanceInquiry() {
         }
 
         const items: EquipmentDetail[] = data.items ?? [];
+        const source = String(data.source ?? "");
 
         if (items.length === 0) {
           setStatusMessage("該当する設備が見つかりません");
@@ -537,7 +548,11 @@ export function EquipmentMaintenanceInquiry() {
         setFilterLabel(labelParts.length > 0 ? labelParts.join(" ") : "フィルターなし");
 
         await showRecord(items[0], 0, items);
-        setStatusMessage(`${items.length.toLocaleString()} 件ヒット`);
+        const masterHint =
+          source.includes("fallback") || source.includes("no_table")
+            ? "（設備マスタ未投入のため機種・メーカー等は空欄のことがあります）"
+            : "";
+        setStatusMessage(`${items.length.toLocaleString()} 件ヒット${masterHint}`);
       } catch {
         setStatusMessage("検索に失敗しました");
       } finally {

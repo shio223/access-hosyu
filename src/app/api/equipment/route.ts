@@ -368,7 +368,8 @@ export async function GET(request: NextRequest) {
       )
       .eq("customer_code", customerCode)
       .eq("equipment_no", equipmentNo)
-      .order("work_date", { ascending: false, nullsFirst: false });
+      .order("work_date", { ascending: true, nullsFirst: false })
+      .limit(2000);
 
     if (histErr) {
       return NextResponse.json({ error: histErr.message }, { status: 500 });

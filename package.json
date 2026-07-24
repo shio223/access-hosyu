@@ -10,6 +10,7 @@
     "import:csv": "tsx scripts/import-csv.ts",
     "import:supabase": "tsx scripts/import-to-supabase.ts",
     "import:equipment": "tsx scripts/import-equipment-master.ts",
+    "setup:equipment": "tsx scripts/setup-equipment-master.ts",
     "auth:set-password": "tsx scripts/set-auth-password.ts"
   },
   "dependencies": {
