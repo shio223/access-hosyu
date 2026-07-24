@@ -83,8 +83,16 @@ export async function POST(request: NextRequest) {
     if (linkError || !tokenHash) {
       recordAuthAttempt(key, false);
       console.error("[pet-login] generateLink failed", linkError?.message);
+      const msg = linkError?.message ?? "";
+      const unreachable =
+        /ENOTFOUND|fetch failed|getaddrinfo|ECONNREFUSED|network/i.test(msg) ||
+        msg.includes("fetch");
       return NextResponse.json(
-        { error: "ログインに失敗しました" },
+        {
+          error: unreachable
+            ? "Supabaseに接続できません（プロジェクトURLを確認してください）"
+            : "ログインに失敗しました",
+        },
         { status: 401 }
       );
     }
@@ -122,12 +130,16 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (err) {
     recordAuthAttempt(key, false);
-    console.error(
-      "[pet-login] unexpected",
-      err instanceof Error ? err.message : "unknown"
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.error("[pet-login] unexpected", msg);
+    const unreachable =
+      /ENOTFOUND|fetch failed|getaddrinfo|ECONNREFUSED|network/i.test(msg);
     return NextResponse.json(
-      { error: "ログインに失敗しました" },
+      {
+        error: unreachable
+          ? "Supabaseに接続できません（プロジェクトURLを確認してください）"
+          : "ログインに失敗しました",
+      },
       { status: 401 }
     );
   }

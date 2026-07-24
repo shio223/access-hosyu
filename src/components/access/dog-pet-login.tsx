@@ -65,7 +65,9 @@ export function DogPetLogin() {
             ? "しばらくしてからもう一度お試しください"
             : detail === "ログイン設定が完了していません"
               ? "本番のログイン設定（Vercel環境変数）が未完了です"
-              : "入れませんでした。もう一度撫でてください"
+              : detail.includes("Supabaseに接続できません")
+                ? detail
+                : detail || "入れませんでした。もう一度撫でてください"
         );
         clearSessionGate();
         resetPets();
