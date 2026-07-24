@@ -10,6 +10,7 @@ import {
   normalizeSearchCode,
   normalizeSearchText,
 } from "@/lib/search-normalize";
+import { logSupabaseConnectionError } from "@/lib/supabase/connection-error";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,35 @@ function formatWorkDate(value: string | null | undefined): string {
   if (!value) return "";
   return String(value).slice(0, 10).replace(/-/g, "/");
 }
+
+function isMissingEquipmentMasterTable(message: string | undefined): boolean {
+  if (!message) return false;
+  return /equipment_master/i.test(message) && /schema cache|does not exist|not find/i.test(message);
+}
+
+const EMPTY_MASTER_ROW = (
+  customerCode: string,
+  equipmentNo: string
+): EquipmentMasterDbRow => ({
+  customer_code: customerCode,
+  equipment_number: equipmentNo,
+  equipment_name: null,
+  machine_code: null,
+  maker_code: null,
+  model: null,
+  management_number: null,
+  installation_date: null,
+  inspection_cycle: null,
+  next_inspection_date: null,
+  inspection_notice: null,
+  dealer1_code: null,
+  dealer2_code: null,
+  dealer3_code: null,
+  oil_type: null,
+  remarks: null,
+  operation_status_code: null,
+  updated_at_source: null,
+});
 
 async function loadCustomerMap(
   supabase: NonNullable<Awaited<ReturnType<typeof requireAuth>>["supabase"]>,
@@ -40,11 +70,126 @@ async function loadCustomerMap(
   return map;
 }
 
+type SearchFilters = {
+  customerCode: string;
+  equipmentNo: string;
+  q: string;
+};
+
+/** equipment_master 検索。テーブル未作成時は null を返す */
+async function searchEquipmentMaster(
+  supabase: NonNullable<Awaited<ReturnType<typeof requireAuth>>["supabase"]>,
+  filters: SearchFilters
+): Promise<{ rows: EquipmentMasterDbRow[]; missingTable: boolean; error?: string }> {
+  let query = supabase
+    .from("equipment_master")
+    .select(EQUIPMENT_SELECT)
+    .order("customer_code")
+    .order("equipment_number")
+    .limit(500);
+
+  if (filters.customerCode) query = query.eq("customer_code", filters.customerCode);
+  if (filters.equipmentNo) {
+    query = query.ilike("equipment_number", `%${filters.equipmentNo}%`);
+  }
+  if (filters.q) {
+    query = query.or(
+      `customer_code.ilike.%${filters.q}%,equipment_number.ilike.%${filters.q}%,equipment_name.ilike.%${filters.q}%`
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    logSupabaseConnectionError("equipment.search.master", error, {
+      httpStatus: (error as { status?: number }).status ?? null,
+      code: error.code ?? null,
+    });
+    if (isMissingEquipmentMasterTable(error.message)) {
+      return { rows: [], missingTable: true, error: error.message };
+    }
+    return { rows: [], missingTable: false, error: error.message };
+  }
+  return { rows: (data ?? []) as EquipmentMasterDbRow[], missingTable: false };
+}
+
+/** 保守実績から得意先×設備の候補を作成（マスタ未投入時のフォールバック） */
+async function searchFromMaintenanceRecords(
+  supabase: NonNullable<Awaited<ReturnType<typeof requireAuth>>["supabase"]>,
+  filters: SearchFilters
+): Promise<{ items: EquipmentDetail[]; error?: string }> {
+  let query = supabase
+    .from("maintenance_records")
+    .select("customer_code, equipment_no")
+    .order("customer_code")
+    .order("equipment_no")
+    .limit(5000);
+
+  if (filters.customerCode) query = query.eq("customer_code", filters.customerCode);
+  if (filters.equipmentNo) {
+    query = query.ilike("equipment_no", `%${filters.equipmentNo}%`);
+  }
+  if (filters.q) {
+    query = query.or(
+      `customer_code.ilike.%${filters.q}%,equipment_no.ilike.%${filters.q}%`
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    logSupabaseConnectionError("equipment.search.maintenance", error, {
+      httpStatus: (error as { status?: number }).status ?? null,
+      code: error.code ?? null,
+    });
+    return { items: [], error: error.message };
+  }
+
+  const keySet = new Map<string, { customerCode: string; equipmentNo: string }>();
+  for (const r of data ?? []) {
+    const key = `${r.customer_code}\t${r.equipment_no}`;
+    if (!keySet.has(key)) {
+      keySet.set(key, {
+        customerCode: r.customer_code,
+        equipmentNo: r.equipment_no,
+      });
+    }
+  }
+  const pairs = [...keySet.values()].slice(0, 500);
+  const custMap = await loadCustomerMap(
+    supabase,
+    pairs.map((p) => p.customerCode)
+  );
+
+  // マスタがあれば上書き（テーブルがあるがヒットが実績のみの場合）
+  const masterByKey = new Map<string, EquipmentMasterDbRow>();
+  if (pairs.length > 0) {
+    const codes = [...new Set(pairs.map((p) => p.customerCode))];
+    const { data: masters, error: mErr } = await supabase
+      .from("equipment_master")
+      .select(EQUIPMENT_SELECT)
+      .in("customer_code", codes)
+      .limit(2000);
+    if (!mErr && masters) {
+      for (const row of masters as EquipmentMasterDbRow[]) {
+        masterByKey.set(`${row.customer_code}\t${row.equipment_number}`, row);
+      }
+    }
+  }
+
+  const items = pairs.map((p) => {
+    const master =
+      masterByKey.get(`${p.customerCode}\t${p.equipmentNo}`) ??
+      EMPTY_MASTER_ROW(p.customerCode, p.equipmentNo);
+    return mapEquipmentMasterToDetail(master, custMap.get(p.customerCode));
+  });
+
+  return { items };
+}
+
 /**
  * 設備照会API
- * - 設備情報: equipment_master
+ * - 設備情報: equipment_master（未作成・未投入時は maintenance_records にフォールバック）
  * - 得意先名等: customers
- * - 保守履歴: maintenance_records
+ * - 保守履歴: maintenance_records（customer_code + equipment_no で紐付け）
  */
 export async function GET(request: NextRequest) {
   try {
@@ -83,6 +228,9 @@ export async function GET(request: NextRequest) {
     if (lookup === "equipment") {
       const customerCode = normalizeSearchCode(searchParams.get("customerCode"));
       const q = normalizeSearchCode(searchParams.get("q"));
+      if (!customerCode && !q) {
+        return NextResponse.json({ items: [] });
+      }
 
       let query = supabase
         .from("equipment_master")
@@ -90,65 +238,94 @@ export async function GET(request: NextRequest) {
         .order("customer_code")
         .order("equipment_number")
         .limit(100);
-
       if (customerCode) query = query.eq("customer_code", customerCode);
       if (q) query = query.ilike("equipment_number", `%${q}%`);
-      if (!customerCode && !q) {
-        return NextResponse.json({ items: [] });
-      }
 
       const { data, error } = await query;
-      if (error) {
+      if (!error) {
+        return NextResponse.json({
+          items: (data ?? []).map((r) => ({
+            customerCode: r.customer_code,
+            equipmentNo: r.equipment_number,
+            equipmentName: r.equipment_name ?? "",
+          })),
+        });
+      }
+
+      if (!isMissingEquipmentMasterTable(error.message)) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      return NextResponse.json({
-        items: (data ?? []).map((r) => ({
+      // テーブル未作成 → 実績から設備番号候補
+      let fallback = supabase
+        .from("maintenance_records")
+        .select("customer_code, equipment_no")
+        .order("equipment_no")
+        .limit(500);
+      if (customerCode) fallback = fallback.eq("customer_code", customerCode);
+      if (q) fallback = fallback.ilike("equipment_no", `%${q}%`);
+      const { data: rows, error: fbErr } = await fallback;
+      if (fbErr) {
+        return NextResponse.json({ error: fbErr.message }, { status: 500 });
+      }
+      const seen = new Set<string>();
+      const items: {
+        customerCode: string;
+        equipmentNo: string;
+        equipmentName: string;
+      }[] = [];
+      for (const r of rows ?? []) {
+        const key = `${r.customer_code}\t${r.equipment_no}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        items.push({
           customerCode: r.customer_code,
-          equipmentNo: r.equipment_number,
-          equipmentName: r.equipment_name ?? "",
-        })),
-      });
+          equipmentNo: r.equipment_no,
+          equipmentName: "",
+        });
+      }
+      return NextResponse.json({ items });
     }
 
     if (searchParams.get("search") === "true") {
-      const customerCode = normalizeSearchCode(searchParams.get("customerCode"));
-      const equipmentNo = normalizeSearchCode(searchParams.get("equipmentNo"));
-      const q = normalizeSearchText(searchParams.get("q"));
+      const filters: SearchFilters = {
+        customerCode: normalizeSearchCode(searchParams.get("customerCode")),
+        equipmentNo: normalizeSearchCode(searchParams.get("equipmentNo")),
+        q: normalizeSearchText(searchParams.get("q")),
+      };
 
-      let query = supabase
-        .from("equipment_master")
-        .select(EQUIPMENT_SELECT)
-        .order("customer_code")
-        .order("equipment_number")
-        .limit(500);
-
-      if (customerCode) query = query.eq("customer_code", customerCode);
-      if (equipmentNo) {
-        query = query.ilike("equipment_number", `%${equipmentNo}%`);
+      const master = await searchEquipmentMaster(supabase, filters);
+      if (master.error && !master.missingTable) {
+        return NextResponse.json({ error: master.error }, { status: 500 });
       }
-      if (q) {
-        query = query.or(
-          `customer_code.ilike.%${q}%,equipment_number.ilike.%${q}%,equipment_name.ilike.%${q}%`
+
+      if (master.rows.length > 0) {
+        const custMap = await loadCustomerMap(
+          supabase,
+          master.rows.map((r) => r.customer_code)
         );
+        const items: EquipmentDetail[] = master.rows.map((r) =>
+          mapEquipmentMasterToDetail(r, custMap.get(r.customer_code))
+        );
+        return NextResponse.json({
+          items,
+          total: items.length,
+          source: "equipment_master",
+        });
       }
 
-      const { data, error } = await query;
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      // マスタ0件 or テーブル未作成 → 実績フォールバック
+      const fallback = await searchFromMaintenanceRecords(supabase, filters);
+      if (fallback.error) {
+        return NextResponse.json({ error: fallback.error }, { status: 500 });
       }
-
-      const rows = (data ?? []) as EquipmentMasterDbRow[];
-      const custMap = await loadCustomerMap(
-        supabase,
-        rows.map((r) => r.customer_code)
-      );
-
-      const items: EquipmentDetail[] = rows.map((r) =>
-        mapEquipmentMasterToDetail(r, custMap.get(r.customer_code))
-      );
-
-      return NextResponse.json({ items, total: items.length });
+      return NextResponse.json({
+        items: fallback.items,
+        total: fallback.items.length,
+        source: master.missingTable
+          ? "maintenance_records_fallback_no_table"
+          : "maintenance_records_fallback",
+      });
     }
 
     const customerCode = normalizeSearchCode(searchParams.get("customerCode"));
@@ -161,15 +338,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data: eqRow, error: eqErr } = await supabase
+    let eqRow: EquipmentMasterDbRow | null = null;
+    const { data: masterRow, error: eqErr } = await supabase
       .from("equipment_master")
       .select(EQUIPMENT_SELECT)
       .eq("customer_code", customerCode)
       .eq("equipment_number", equipmentNo)
       .maybeSingle();
 
-    if (eqErr) {
+    if (eqErr && !isMissingEquipmentMasterTable(eqErr.message)) {
       return NextResponse.json({ error: eqErr.message }, { status: 500 });
+    }
+    if (!eqErr && masterRow) {
+      eqRow = masterRow as EquipmentMasterDbRow;
     }
 
     const { data: cust } = await supabase
@@ -200,31 +381,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const detail = eqRow
-      ? mapEquipmentMasterToDetail(eqRow as EquipmentMasterDbRow, cust)
-      : mapEquipmentMasterToDetail(
-          {
-            customer_code: customerCode,
-            equipment_number: equipmentNo,
-            equipment_name: null,
-            machine_code: null,
-            maker_code: null,
-            model: null,
-            management_number: null,
-            installation_date: null,
-            inspection_cycle: null,
-            next_inspection_date: null,
-            inspection_notice: null,
-            dealer1_code: null,
-            dealer2_code: null,
-            dealer3_code: null,
-            oil_type: null,
-            remarks: null,
-            operation_status_code: null,
-            updated_at_source: null,
-          },
-          cust
-        );
+    const detail = mapEquipmentMasterToDetail(
+      eqRow ?? EMPTY_MASTER_ROW(customerCode, equipmentNo),
+      cust
+    );
 
     const history: MaintenanceRecord[] = (histRows ?? []).map((r) => ({
       workDate: formatWorkDate(r.work_date),
@@ -240,8 +400,17 @@ export async function GET(request: NextRequest) {
       inputterName: "",
     }));
 
-    return NextResponse.json({ detail, history });
+    return NextResponse.json({
+      detail,
+      history,
+      linked: {
+        equipmentMaster: Boolean(eqRow),
+        customer: Boolean(cust),
+        maintenanceCount: history.length,
+      },
+    });
   } catch (error) {
+    logSupabaseConnectionError("equipment", error);
     console.error("[equipment]", error);
     return NextResponse.json(
       { error: "設備照会に失敗しました" },
