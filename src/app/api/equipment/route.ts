@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import type { EquipmentDetail, MaintenanceRecord } from "@/lib/db/types";
 import {
   mapEquipmentMasterToDetail,
+  maxDateString,
   type CustomerLite,
   type EquipmentMasterDbRow,
 } from "@/lib/equipment-master-map";
@@ -68,6 +69,61 @@ async function loadCustomerMap(
     map.set(c.customer_code, c);
   }
   return map;
+}
+
+/**
+ * 同一得意先コード内の最新次回点検日を取得。
+ * equipment_master の next_inspection_date の MAX。
+ */
+async function loadLatestNextInspectionByCustomer(
+  supabase: NonNullable<Awaited<ReturnType<typeof requireAuth>>["supabase"]>,
+  codes: string[]
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const unique = [...new Set(codes.filter(Boolean))];
+  if (unique.length === 0) return map;
+
+  // PostgREST に GROUP BY が無いため、該当得意先の日付列だけ取得して集計
+  const { data, error } = await supabase
+    .from("equipment_master")
+    .select("customer_code, next_inspection_date")
+    .in("customer_code", unique)
+    .limit(10000);
+
+  if (error) {
+    if (!isMissingEquipmentMasterTable(error.message)) {
+      logSupabaseConnectionError("equipment.latestNextInspection", error, {
+        code: error.code ?? null,
+      });
+    }
+    return map;
+  }
+
+  const buckets = new Map<string, (string | null)[]>();
+  for (const row of data ?? []) {
+    const list = buckets.get(row.customer_code) ?? [];
+    list.push(row.next_inspection_date);
+    buckets.set(row.customer_code, list);
+  }
+  for (const [code, dates] of buckets) {
+    const max = maxDateString(dates);
+    if (max) map.set(code, max);
+  }
+  return map;
+}
+
+function applyLatestNextInspection(
+  items: EquipmentDetail[],
+  latestByCustomer: Map<string, string>
+): EquipmentDetail[] {
+  return items.map((item) => {
+    const latest = latestByCustomer.get(item.customerCode);
+    if (!latest) return item;
+    return {
+      ...item,
+      nextInspectionDate: latest.replace(/-/g, "/"),
+    };
+  });
 }
 
 type SearchFilters = {
@@ -182,7 +238,11 @@ async function searchFromMaintenanceRecords(
     return mapEquipmentMasterToDetail(master, custMap.get(p.customerCode));
   });
 
-  return { items };
+  const latestByCustomer = await loadLatestNextInspectionByCustomer(
+    supabase,
+    pairs.map((p) => p.customerCode)
+  );
+  return { items: applyLatestNextInspection(items, latestByCustomer) };
 }
 
 /**
@@ -300,12 +360,15 @@ export async function GET(request: NextRequest) {
       }
 
       if (master.rows.length > 0) {
-        const custMap = await loadCustomerMap(
-          supabase,
-          master.rows.map((r) => r.customer_code)
-        );
+        const codes = master.rows.map((r) => r.customer_code);
+        const [custMap, latestByCustomer] = await Promise.all([
+          loadCustomerMap(supabase, codes),
+          loadLatestNextInspectionByCustomer(supabase, codes),
+        ]);
         const items: EquipmentDetail[] = master.rows.map((r) =>
-          mapEquipmentMasterToDetail(r, custMap.get(r.customer_code))
+          mapEquipmentMasterToDetail(r, custMap.get(r.customer_code), {
+            latestNextInspectionDate: latestByCustomer.get(r.customer_code),
+          })
         );
         return NextResponse.json({
           items,
@@ -382,9 +445,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const latestByCustomer = await loadLatestNextInspectionByCustomer(
+      supabase,
+      [customerCode]
+    );
+
     const detail = mapEquipmentMasterToDetail(
       eqRow ?? EMPTY_MASTER_ROW(customerCode, equipmentNo),
-      cust
+      cust,
+      {
+        latestNextInspectionDate: latestByCustomer.get(customerCode),
+      }
     );
 
     const history: MaintenanceRecord[] = (histRows ?? []).map((r) => ({

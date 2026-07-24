@@ -19,6 +19,20 @@ function formatDate(value: string | null | undefined): string {
   return String(value).slice(0, 10).replace(/-/g, "/");
 }
 
+/** YYYY-MM-DD / Date 文字列比較用。空は最古扱い */
+export function maxDateString(
+  dates: (string | null | undefined)[]
+): string | null {
+  let best: string | null = null;
+  for (const raw of dates) {
+    if (raw == null || raw === "") continue;
+    const d = String(raw).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    if (best == null || d > best) best = d;
+  }
+  return best;
+}
+
 function dealerLabel(code: string | null | undefined): string {
   if (!code) return "";
   const name = nameFrom(dealerMaster, code);
@@ -57,11 +71,17 @@ export type CustomerLite = {
 /** equipment_master + customers → 画面用 EquipmentDetail */
 export function mapEquipmentMasterToDetail(
   row: EquipmentMasterDbRow,
-  customer?: CustomerLite | null
+  customer?: CustomerLite | null,
+  options?: {
+    /** 同一得意先コード内の最新次回点検日（あれば優先） */
+    latestNextInspectionDate?: string | null;
+  }
 ): EquipmentDetail {
   const statusCode = row.operation_status_code ?? "";
   const machineCode = row.machine_code ?? "";
   const makerCode = row.maker_code ?? "";
+  const nextInspection =
+    options?.latestNextInspectionDate ?? row.next_inspection_date;
 
   return {
     customerCode: row.customer_code,
@@ -83,7 +103,7 @@ export function mapEquipmentMasterToDetail(
     address2: customer?.address2 ?? "",
     deliveryDate: formatDate(row.installation_date),
     inspectionCycle: row.inspection_cycle ?? "",
-    nextInspectionDate: formatDate(row.next_inspection_date),
+    nextInspectionDate: formatDate(nextInspection),
     inspectionNotice: row.inspection_notice ?? "",
     dealer1: dealerLabel(row.dealer1_code),
     dealer2: dealerLabel(row.dealer2_code),
